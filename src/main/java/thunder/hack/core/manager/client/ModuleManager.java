@@ -50,8 +50,6 @@ public class ModuleManager implements IManager {
     public static TimerIndicator timerIndicator = new TimerIndicator();
     public static ThunderHackGui thunderHackGui = new ThunderHackGui();
     public static NoServerRotate noServerRotate = new NoServerRotate();
-    public static FireSpam fireSpam = new FireSpam();
-    public static FakeLag fakeLag = new FakeLag();
     public static TargetSpeed targetSpeed = new TargetSpeed();
     public static BreakHighLight breakHighLight = new BreakHighLight();
     public static BlockHighLight blockHighLight = new BlockHighLight();

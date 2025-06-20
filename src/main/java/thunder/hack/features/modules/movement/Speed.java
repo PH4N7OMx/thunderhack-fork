@@ -138,14 +138,38 @@ public class Speed extends Module {
             int collisions = 0;
             for (Entity grimEnt : mc.world.getEntities()) {
                 if (grimEnt != mc.player
-                        && (!(grimEnt instanceof ArmorStandEntity) || armorStands.getValue())
+                        && (!(grimEnt instanceof ArmorStandEntity) || armorStands2.getValue())
                         && (grimEnt instanceof LivingEntity || grimEnt instanceof BoatEntity)
                         && mc.player.getBoundingBox().expand(grimEntity2Distance.getValue()).intersects(grimEnt.getBoundingBox())) {
                     collisions++;
                 }
             }
-            double[] motion = MovementUtility.forward(grimEntity2Speed.getValue() * collisions);
-            mc.player.addVelocity(motion[0], 0.0, motion[1]);
+
+            // Исправление: учитываем направление движения игрока
+            if (collisions > 0) {
+                // Получаем направление движения на основе ввода игрока
+                float yaw = mc.player.getYaw();
+                float forward = mc.player.input.movementForward;
+                float strafe = mc.player.input.movementSideways;
+
+                // Вычисляем направление движения с учетом поворота камеры
+                double motionX = 0;
+                double motionZ = 0;
+
+                if (forward != 0 || strafe != 0) {
+                    // Нормализуем направление
+                    double length = Math.sqrt(forward * forward + strafe * strafe);
+                    forward /= length;
+                    strafe /= length;
+
+                    // Применяем поворот
+                    double radians = Math.toRadians(yaw);
+                    motionX = (strafe * Math.cos(radians) - forward * Math.sin(radians)) * grimEntity2Speed.getValue() * collisions;
+                    motionZ = (forward * Math.cos(radians) + strafe * Math.sin(radians)) * grimEntity2Speed.getValue() * collisions;
+                }
+
+                mc.player.addVelocity(motionX, 0.0, motionZ);
+            }
         }
     }
 

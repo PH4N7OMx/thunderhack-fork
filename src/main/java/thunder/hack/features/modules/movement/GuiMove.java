@@ -26,8 +26,8 @@ public class GuiMove extends Module {
     private final Setting<Bypass> clickBypass = new Setting<>("Bypass", Bypass.None);
     private final Setting<Boolean> rotateOnArrows = new Setting<>("RotateOnArrows", true);
     private final Setting<Boolean> sneak = new Setting<>("sneak", false);
-    private final Setting<Boolean> noContainers = new Setting<>("NoContainers", true);
-    private final Setting<Boolean> onlyGround = new Setting<>("OnlyGround", true);
+    private final Setting<Boolean> noContainers = new Setting<>("NoContainers", false);
+    private final Setting<Boolean> onlyGround = new Setting<>("OnlyGround", false);
 
     private final Queue<ClickSlotC2SPacket> delayedClicks = new LinkedList<>();
     private final AtomicBoolean isFlushing = new AtomicBoolean(false);

@@ -118,9 +118,6 @@ public class Aura extends Module {
     public final Setting<Boolean> unpressShield = new Setting<>("UnpressShield", true).addToGroup(advanced);
     public final Setting<Boolean> deathDisable = new Setting<>("DisableOnDeath", true).addToGroup(advanced);
     public final Setting<Boolean> tpDisable = new Setting<>("TPDisable", false).addToGroup(advanced);
-    public final Setting<Boolean> pullDown = new Setting<>("FastFall", false).addToGroup(advanced);
-    public final Setting<Boolean> onlyJumpBoost = new Setting<>("OnlyJumpBoost", false, v -> pullDown.getValue()).addToGroup(advanced);
-    public final Setting<Float> pullValue = new Setting<>("PullValue", 3f, 0f, 20f, v -> pullDown.getValue()).addToGroup(advanced);
     public final Setting<AttackHand> attackHand = new Setting<>("AttackHand", AttackHand.MainHand).addToGroup(advanced);
     public final Setting<Resolver> resolver = new Setting<>("Resolver", Resolver.Advantage).addToGroup(advanced);
     public final Setting<Integer> backTicks = new Setting<>("BackTicks", 4, 1, 20, v -> resolver.is(Resolver.BackTrack)).addToGroup(advanced);
@@ -203,9 +200,6 @@ public class Aura extends Module {
                 rotationMode.setValue(Mode.Track);
                 resolver.setValue(Resolver.Mimimix);
 
-                if (fireSpam.getValue()) {
-                    ModuleManager.fireSpam.enable();
-                }
 
                 ModuleManager.rotations.setMoveFix(Rotations.MoveFix.Focused);
                 elytraTargetActive = true;
@@ -214,10 +208,6 @@ public class Aura extends Module {
             } else {
                 rotationMode.setValue(previousRotationMode);
                 resolver.setValue(previousResolverMode);
-
-                if (fireSpam.getValue()) {
-                    ModuleManager.fireSpam.disable();
-                }
 
                 ModuleManager.rotations.setMoveFix(previousMoveFix);
                 elytraTargetActive = false;
@@ -455,9 +445,6 @@ public class Aura extends Module {
         if (oldDelay.getValue().isEnabled())
             if (minCPS.getValue() > maxCPS.getValue())
                 minCPS.setValue(maxCPS.getValue());
-
-        if (target != null && pullDown.getValue() && (mc.player.hasStatusEffect(StatusEffects.JUMP_BOOST) || !onlyJumpBoost.getValue()))
-            mc.player.addVelocity(0f, -pullValue.getValue() / 1000f, 0f);
     }
 
     @EventHandler
@@ -694,10 +681,6 @@ public class Aura extends Module {
             }
             if (previousResolverMode != null) {
                 resolver.setValue(previousResolverMode);
-            }
-
-            if (fireSpam.getValue()) {
-                ModuleManager.fireSpam.disable();
             }
 
             ModuleManager.rotations.setMoveFix(previousMoveFix);
