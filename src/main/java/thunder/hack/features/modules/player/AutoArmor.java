@@ -5,12 +5,11 @@ import net.minecraft.component.type.ItemEnchantmentsComponent;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.enchantment.Enchantments;
 import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.item.ArmorItem;
-import net.minecraft.item.ElytraItem;
-import net.minecraft.item.ItemStack;
+import net.minecraft.item.*;
 import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
 import net.minecraft.network.packet.c2s.play.CloseHandledScreenC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerInteractItemC2SPacket;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.util.Hand;
 import thunder.hack.core.manager.client.ModuleManager;
 import thunder.hack.gui.clickui.ClickGUI;
@@ -51,6 +50,25 @@ public class AutoArmor extends Module {
 
     @Override
     public void onUpdate() {
+
+        for (int i = 0; i < 36; i++) {
+            ItemStack stack = mc.player.getInventory().getStack(i);
+            int prot = getProtection(stack);
+            if (prot > 0) {
+                for (ArmorData e : armorList) {
+                    if (e.getEquipmentSlot() == (stack.getItem() instanceof ArmorItem ai ? ai.getSlotType() : EquipmentSlot.CHEST)) {
+                        if (prot > e.getPrevProt() && (prot > e.getNewProtection() ||
+                                (prot == e.getNewProtection() && getMaterialValue(stack) > getMaterialValue(mc.player.getInventory().getStack(e.getNewSlot()))))) {
+
+                            e.setNewSlot(i);
+                            e.setNewProtection(prot);
+                        }
+                    }
+                }
+            }
+        }
+
+
         if (mc.currentScreen != null && pauseInventory.getValue() && !(mc.currentScreen instanceof ChatScreen) && !(mc.currentScreen instanceof ClickGUI) && !(mc.currentScreen instanceof HudEditorGui))
             return;
 
@@ -105,6 +123,7 @@ public class AutoArmor extends Module {
     private int getProtection(ItemStack is) {
         if (is.getItem() instanceof ArmorItem || is.getItem() instanceof ElytraItem) {
             int prot = 0;
+            int materialValue = getMaterialValue(is);
 
             EquipmentSlot slot = is.getItem() instanceof ArmorItem ai ? ai.getSlotType() : EquipmentSlot.BODY;
 
@@ -144,7 +163,6 @@ public class AutoArmor extends Module {
             if (is.hasEnchantments()) {
                 ItemEnchantmentsComponent enchants = EnchantmentHelper.getEnchantments(is);
 
-                //mc.world.getRegistryManager().get(Enchantments.BLAST_PROTECTION.getRegistryRef()).getEntry(Enchantments.BLAST_PROTECTION).get()
                 if (enchants.getEnchantments().contains(mc.world.getRegistryManager().get(Enchantments.PROTECTION.getRegistryRef()).getEntry(Enchantments.PROTECTION).get()))
                     prot += enchants.getLevel(mc.world.getRegistryManager().get(Enchantments.PROTECTION.getRegistryRef()).getEntry(Enchantments.PROTECTION).get()) * protectionMultiplier;
 
@@ -155,10 +173,24 @@ public class AutoArmor extends Module {
                     prot = -999;
             }
 
-            return (is.getItem() instanceof ArmorItem armorItem ? (armorItem.getProtection() + (int) Math.ceil(armorItem.getToughness())) * 10 : 0) + prot;
+            return ((is.getItem() instanceof ArmorItem armorItem ? (armorItem.getProtection() + (int) Math.ceil(armorItem.getToughness())) * 10 : 0) + prot) * 10 + materialValue;
         } else if (!is.isEmpty()) return 0;
         return -1;
     }
+
+    private int getMaterialValue(ItemStack is) {
+        if (is.getItem() instanceof ArmorItem ai) {
+            ArmorMaterial material = ai.getMaterial().value();
+
+            if (material.equals(ArmorMaterials.NETHERITE)) return 5;
+            if (material.equals(ArmorMaterials.DIAMOND)) return 4;
+            if (material.equals(ArmorMaterials.IRON)) return 3;
+            if (material.equals(ArmorMaterials.GOLD)) return 2;
+            if (material.equals(ArmorMaterials.LEATHER)) return 1;
+        }
+        return 0;
+    }
+
 
     public class ArmorData {
         private EquipmentSlot equipmentSlot;

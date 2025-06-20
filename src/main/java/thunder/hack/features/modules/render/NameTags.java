@@ -72,6 +72,7 @@ public class NameTags extends Module {
         encMap.put(Enchantments.POWER, "PO");
         encMap.put(Enchantments.THORNS, "T");
     }
+    String final_string = "";
 
     private final Setting<Boolean> self = new Setting<>("Self", false);
     private final Setting<Float> scale = new Setting<>("Scale", 1f, 0.1f, 10f);
@@ -99,7 +100,8 @@ public class NameTags extends Module {
     private final Setting<Font> font = new Setting<>("FontMode", Font.Fancy);
     private final Setting<Armor> armorMode = new Setting<>("ArmorMode", Armor.Full);
     private final Setting<Health> health = new Setting<>("Health", Health.Number);
-
+    private final Setting<Boolean> shortName = new Setting<>("ShortName", false);
+    private final Setting<ColorSetting> shortNameColor = new Setting<>("ShortNameColor", new ColorSetting(0xFFFFFFFF));
 
     public void onRender2D(DrawContext context) {
         if (mc.options.hudHidden) return;
@@ -207,8 +209,33 @@ public class NameTags extends Module {
 
                         ItemEnchantmentsComponent enchants = EnchantmentHelper.getEnchantments(armorComponent);
 
+                        if (shortName.getValue()) {
+                            String itemName = "";
+                            if (!armorComponent.isEmpty()) {
+                                itemName = armorComponent.getName().getString();
+                            }
 
-                        if (enchantss.getValue()) {
+                            if (!itemName.isEmpty() && !itemName.toLowerCase().contains("totem")) {
+                                String shortItemName = "";
+                                if (itemName.matches(".*\\d+.*")) {
+                                    shortItemName = itemName.replaceAll(".*?(\\d+).*", "$1");
+                                }
+
+                                if (!shortItemName.isEmpty()) {
+                                    int color = shortNameColor.getValue().getRawColor();
+                                    float nameY = (float) posY - 60;
+
+                                    if (font.getValue() == Font.Fancy) {
+                                        FontRenderers.sf_bold.drawString(context.getMatrices(), shortItemName, posX - 50 + item_offset, nameY, color);
+                                    } else {
+                                        context.getMatrices().push();
+                                        context.getMatrices().translate((float) posX - 50f + item_offset, nameY, 0f);
+                                        context.drawText(mc.textRenderer, shortItemName, 0, 0, color, false);
+                                        context.getMatrices().pop();
+                                    }
+                                }
+                            }
+
                             if (!onlyHands.getValue() || (armorComponent == ent.getOffHandStack() || armorComponent == ent.getMainHandStack())) {
                                 for (RegistryKey<Enchantment> enchantment : encMap.keySet()) {
                                     if (enchants.getEnchantments().contains(mc.world.getRegistryManager().get(Enchantments.PROTECTION.getRegistryRef()).getEntry(enchantment).get())) {
@@ -235,6 +262,7 @@ public class NameTags extends Module {
                     item_offset += 18f;
                 }
 
+
                 Color color = Managers.FRIEND.isFriend(ent) ? fillColorF.getValue().getColorObject() : fillColorA.getValue().getColorObject();
 
                 OutlineColor cl = Managers.FRIEND.isFriend(ent) ? friendOutline.getValue() : outline.getValue();
@@ -243,7 +271,6 @@ public class NameTags extends Module {
                     Render2DEngine.drawRectWithOutline(context.getMatrices(), tagX - 2, (float) (posY - 13f), textWidth + 4, 11, color, outlineColor.getValue().getColorObject());
                 else
                     Render2DEngine.drawRect(context.getMatrices(), tagX - 2, (float) (posY - 13f), textWidth + 4, 11, color);
-
 
                 switch (cl) {
                     case None, New -> {
