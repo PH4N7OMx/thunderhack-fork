@@ -547,7 +547,7 @@ public final class AutoAnchor extends Module {
         if (mc.player == null || mc.world == null || mc.interactionManager == null) return;
 
         if (autoSwitch.getValue() == Switch.SILENT )
-            InventoryUtility.switchTo(slot);
+            InventoryUtility.switchTo(slot, true);
 
         if (autoSwitch.getValue() == Switch.INVENTORY && slot != -1) {
             mc.interactionManager.clickSlot(mc.player.currentScreenHandler.syncId, slot, mc.player.getInventory().selectedSlot, SlotActionType.SWAP, mc.player);

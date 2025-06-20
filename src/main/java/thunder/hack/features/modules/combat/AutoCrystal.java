@@ -136,12 +136,7 @@ public class AutoCrystal extends Module {
     public final Setting<Boolean> idPredictOnlyDuels = new Setting<>("IDPredictOnlyDuels", false, v -> page.is(Pages.IDPredict));
 
     /*   RENDER   */
-    public final Setting<Aura.ESP> targetEsp = new Setting<>("TargetESP", Aura.ESP.ThunderHack, v -> page.is(Pages.Render));
-    public final Setting<SettingGroup> espGroup = new Setting<>("ESPSettings", new SettingGroup(false, 0), v -> targetEsp.is(Aura.ESP.ThunderHackV2) && page.is(Pages.Render));
-    public final Setting<Integer> espLength = new Setting<>("ESPLength", 14, 1, 40, v -> targetEsp.is(Aura.ESP.ThunderHackV2) && page.is(Pages.Render)).addToGroup(espGroup);
-    public final Setting<Integer> espFactor = new Setting<>("ESPFactor", 8, 1, 20, v -> targetEsp.is(Aura.ESP.ThunderHackV2) && page.is(Pages.Render)).addToGroup(espGroup);
-    public final Setting<Float> espShaking = new Setting<>("ESPShaking", 1.8f, 1.5f, 10f, v -> targetEsp.is(Aura.ESP.ThunderHackV2) && page.is(Pages.Render)).addToGroup(espGroup);
-    public final Setting<Float> espAmplitude = new Setting<>("ESPAmplitude", 3f, 0.1f, 8f, v -> targetEsp.is(Aura.ESP.ThunderHackV2) && page.is(Pages.Render)).addToGroup(espGroup);
+    public final Setting<Aura.ESP> targetEsp = new Setting<>("TargetESP", Aura.ESP.Default, v -> page.is(Pages.Render));
     private final Setting<Swing> swingMode = new Setting<>("Swing", Swing.Place, v -> page.is(Pages.Render));
     private final Setting<Boolean> render = new Setting<>("Render", true, v -> page.is(Pages.Render));
     private final Setting<BooleanSettingGroup> renderExtrapolation = new Setting<>("RExtrapolation", new BooleanSettingGroup(false), v -> page.is(Pages.Render));
@@ -432,11 +427,7 @@ public class AutoCrystal extends Module {
         crystalManager.update();
 
         if (target != null) switch (targetEsp.getValue()) {
-            case CelkaPasta -> Render3DEngine.drawOldTargetEsp(stack, target);
-            case NurikZapen -> CaptureMark.render(target);
-            case ThunderHackV2 ->
-                    Render3DEngine.renderGhosts(espLength.getValue(), espFactor.getValue(), espShaking.getValue(), espAmplitude.getValue(), target);
-            case ThunderHack -> Render3DEngine.drawTargetEsp(stack, target);
+            case Default -> CaptureMark.render(target);
         }
 
         if (render.getValue()) {

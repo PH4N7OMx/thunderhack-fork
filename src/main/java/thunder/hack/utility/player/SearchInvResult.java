@@ -29,7 +29,7 @@ public record SearchInvResult(int slot, boolean found, ItemStack stack) {
 
     public void switchTo() {
         if (found && isInHotBar())
-            InventoryUtility.switchTo(slot);
+            InventoryUtility.switchTo(slot, true);
     }
 
     public void switchToSilent() {

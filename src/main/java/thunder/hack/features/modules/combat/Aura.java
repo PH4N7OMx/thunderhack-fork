@@ -28,18 +28,20 @@ import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.*;
 import org.jetbrains.annotations.NotNull;
+import org.lwjgl.glfw.GLFW;
 import thunder.hack.ThunderHack;
 import thunder.hack.core.Core;
 import thunder.hack.core.Managers;
 import thunder.hack.core.manager.client.ModuleManager;
-import thunder.hack.events.impl.EventSync;
-import thunder.hack.events.impl.PacketEvent;
-import thunder.hack.events.impl.PlayerUpdateEvent;
+import thunder.hack.events.impl.*;
+import thunder.hack.features.modules.client.ClientSettings;
+import thunder.hack.features.modules.client.Rotations;
 import thunder.hack.gui.notification.Notification;
 import thunder.hack.injection.accesors.ILivingEntity;
 import thunder.hack.features.modules.Module;
 import thunder.hack.features.modules.client.HudEditor;
 import thunder.hack.setting.Setting;
+import thunder.hack.setting.impl.Bind;
 import thunder.hack.setting.impl.BooleanSettingGroup;
 import thunder.hack.setting.impl.SettingGroup;
 import thunder.hack.utility.Timer;
@@ -53,6 +55,7 @@ import thunder.hack.utility.render.Render2DEngine;
 import thunder.hack.utility.render.Render3DEngine;
 import thunder.hack.utility.render.animation.CaptureMark;
 
+import java.awt.*;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -60,19 +63,29 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import static net.minecraft.util.UseAction.BLOCK;
 import static net.minecraft.util.math.MathHelper.wrapDegrees;
+import static org.lwjgl.glfw.GLFW.GLFW_PRESS;
 import static thunder.hack.features.modules.client.ClientSettings.isRu;
 import static thunder.hack.utility.math.MathUtility.random;
 
 public class Aura extends Module {
     public final Setting<Float> attackRange = new Setting<>("Range", 3.1f, 1f, 6.0f);
     public final Setting<Float> wallRange = new Setting<>("ThroughWallsRange", 3.1f, 0f, 6.0f);
-    public final Setting<Boolean> elytra = new Setting<>("ElytraOverride",false);
+    public final Setting<Boolean> elytra = new Setting<>("ElytraOverride", false);
     public final Setting<Float> elytraAttackRange = new Setting<>("ElytraRange", 3.1f, 1f, 6.0f, v -> elytra.getValue());
-    public final Setting<Float> elytraWallRange = new Setting<>("ElytraThroughWallsRange", 3.1f, 0f, 6.0f,v -> elytra.getValue());
+    public final Setting<Float> elytraWallRange = new Setting<>("ElytraThroughWallsRange", 3.1f, 0f, 6.0f, v -> elytra.getValue());
     public final Setting<WallsBypass> wallsBypass = new Setting<>("WallsBypass", WallsBypass.Off, v -> getWallRange() > 0);
-    public final Setting<Integer> fov = new Setting<>("FOV", 180, 1, 180);
+    public final Setting<Integer> fov = new Setting<>("FOV", 180, 1, 360);
+    public final Setting<Boolean> elytraTargetcustom = new Setting<>("ElytraTarget", false);
+    public final Setting<Bind> cancel = new Setting<>("Bind", new Bind(GLFW.GLFW_KEY_LEFT_SHIFT, false, false), v -> elytraTargetcustom.getValue());
+    public final Setting<Boolean> fireSpam = new Setting<>("FireSpam", false, v -> elytraTargetcustom.getValue());
+    public final Setting<Boolean> nursulantCrit = new Setting<>("NursulantCrit", false, v -> elytraTargetcustom.getValue());
+    private boolean keyHeld = false;
+    private boolean elytraTargetActive = false;
+    private Mode previousRotationMode;
+    private Rotations.MoveFix previousMoveFix;
+    private boolean critState = false;
     public final Setting<Mode> rotationMode = new Setting<>("RotationMode", Mode.Track);
-    public final Setting<Integer> interactTicks = new Setting<>("InteractTicks", 3, 1, 10, v -> rotationMode.getValue() == Mode.Interact);
+    public final Setting<Integer> interactTicks = new Setting<>("InteractTicks", 3, 1, 50, v -> rotationMode.getValue() == Mode.Interact);
     public final Setting<Switch> switchMode = new Setting<>("AutoWeapon", Switch.None);
     public final Setting<Boolean> onlyWeapon = new Setting<>("OnlyWeapon", false, v -> switchMode.getValue() != Switch.Silent);
     public final Setting<BooleanSettingGroup> smartCrit = new Setting<>("SmartCrit", new BooleanSettingGroup(true));
@@ -85,14 +98,9 @@ public class Aura extends Module {
     public final Setting<Boolean> pauseBaritone = new Setting<>("PauseBaritone", false);
     public final Setting<BooleanSettingGroup> oldDelay = new Setting<>("OldDelay", new BooleanSettingGroup(false));
     public final Setting<Integer> minCPS = new Setting<>("MinCPS", 7, 1, 20).addToGroup(oldDelay);
+    public final Setting<Boolean> ignoreColorTeam = new Setting<>("IgnoreColorTeam", false);
     public final Setting<Integer> maxCPS = new Setting<>("MaxCPS", 12, 1, 20).addToGroup(oldDelay);
 
-    public final Setting<ESP> esp = new Setting<>("ESP", ESP.ThunderHack);
-    public final Setting<SettingGroup> espGroup = new Setting<>("ESPSettings", new SettingGroup(false, 0), v -> esp.is(ESP.ThunderHackV2));
-    public final Setting<Integer> espLength = new Setting<>("ESPLength", 14, 1, 40, v -> esp.is(ESP.ThunderHackV2)).addToGroup(espGroup);
-    public final Setting<Integer> espFactor = new Setting<>("ESPFactor", 8, 1, 20, v -> esp.is(ESP.ThunderHackV2)).addToGroup(espGroup);
-    public final Setting<Float> espShaking = new Setting<>("ESPShaking", 1.8f, 1.5f, 10f, v -> esp.is(ESP.ThunderHackV2)).addToGroup(espGroup);
-    public final Setting<Float> espAmplitude = new Setting<>("ESPAmplitude", 3f, 0.1f, 8f, v -> esp.is(ESP.ThunderHackV2)).addToGroup(espGroup);
 
     public final Setting<Sort> sort = new Setting<>("Sort", Sort.LowestDistance);
     public final Setting<Boolean> lockTarget = new Setting<>("LockTarget", true);
@@ -100,7 +108,7 @@ public class Aura extends Module {
 
     /*   ADVANCED   */
     public final Setting<SettingGroup> advanced = new Setting<>("Advanced", new SettingGroup(false, 0));
-    public final Setting<Float> aimRange = new Setting<>("AimRange", 3.1f, 0f, 6.0f).addToGroup(advanced);
+    public final Setting<Float> aimRange = new Setting<>("AimRange", 3.1f, 0f, 20.0f).addToGroup(advanced);
     public final Setting<Boolean> randomHitDelay = new Setting<>("RandomHitDelay", false).addToGroup(advanced);
     public final Setting<Boolean> pauseInInventory = new Setting<>("PauseInInventory", true).addToGroup(advanced);
     public final Setting<Boolean> dropSprint = new Setting<>("DropSprint", true).addToGroup(advanced);
@@ -127,7 +135,7 @@ public class Aura extends Module {
     public final Setting<Float> attackBaseTime = new Setting<>("AttackBaseTime", 0.5f, 0f, 2f).addToGroup(advanced);
     public final Setting<Integer> attackTickLimit = new Setting<>("AttackTickLimit", 11, 0, 20).addToGroup(advanced);
     public final Setting<Float> critFallDistance = new Setting<>("CritFallDistance", 0f, 0f, 1f).addToGroup(advanced);
-
+    public final Setting<Float> targetDistance = new Setting<>("TargetDistance", 10.0f, 3.0f, 30.0f);
 
     /*   TARGETS   */
     public final Setting<SettingGroup> targets = new Setting<>("Targets", new SettingGroup(false, 0));
@@ -146,11 +154,17 @@ public class Aura extends Module {
     public final Setting<Boolean> ignoreNaked = new Setting<>("IgnoreNaked", false).addToGroup(targets);
     public final Setting<Boolean> ignoreShield = new Setting<>("AttackShieldingEntities", true).addToGroup(targets);
 
+    public final Setting<ESP> esp = new Setting<>("ESP", ESP.Default);
     public static Entity target;
 
+    private final Timer mimimixTimer = new Timer();
     public float rotationYaw;
     public float rotationPitch;
     public float pitchAcceleration = 1f;
+
+    private Color currentColor;
+    private float transitionProgress = 0.0f;
+    private boolean transitioningToHit = false;
 
     private Vec3d rotationPoint = Vec3d.ZERO;
     private Vec3d rotationMotion = Vec3d.ZERO;
@@ -161,6 +175,7 @@ public class Aura extends Module {
 
     private final Timer delayTimer = new Timer();
     private final Timer pauseTimer = new Timer();
+    private Resolver previousResolverMode;
 
     public Box resolvedBox;
     static boolean wasTargeted = false;
@@ -169,12 +184,75 @@ public class Aura extends Module {
         super("Aura", Category.COMBAT);
     }
 
-    private float getRange(){
+    @EventHandler
+    public void onTick(EventTick e) {
+        if (!elytraTargetcustom.getValue()) {
+            return;
+        }
+
+        boolean isKeyPressed = cancel.getValue().getKey() != -1 && GLFW.glfwGetKey(mc.getWindow().getHandle(), cancel.getValue().getKey()) == GLFW.GLFW_PRESS;
+
+        if (isKeyPressed && !keyHeld) {
+            keyHeld = true;
+
+            if (!elytraTargetActive) {
+                previousRotationMode = rotationMode.getValue();
+                previousMoveFix = ModuleManager.rotations.getMoveFix();
+                previousResolverMode = resolver.getValue();
+
+                rotationMode.setValue(Mode.Track);
+                resolver.setValue(Resolver.Mimimix);
+
+                if (fireSpam.getValue()) {
+                    ModuleManager.fireSpam.enable();
+                }
+
+                ModuleManager.rotations.setMoveFix(Rotations.MoveFix.Focused);
+                elytraTargetActive = true;
+
+                Managers.NOTIFICATION.publicity("[Aura-ElytraTarget] ", "Włączony", 2, Notification.Type.SUCCESS);
+            } else {
+                rotationMode.setValue(previousRotationMode);
+                resolver.setValue(previousResolverMode);
+
+                if (fireSpam.getValue()) {
+                    ModuleManager.fireSpam.disable();
+                }
+
+                ModuleManager.rotations.setMoveFix(previousMoveFix);
+                elytraTargetActive = false;
+
+                Managers.NOTIFICATION.publicity("[Aura-ElytraTarget] ", "Wyłączony", 2, Notification.Type.ERROR);
+            }
+        }
+
+        if (!isKeyPressed) {
+            keyHeld = false;
+        }
+
+        if (elytraTargetActive && nursulantCrit.getValue()) {
+            if (mc.options.attackKey.isPressed()) {
+                if (!critState) {
+                    mc.player.setPitch(mc.player.getPitch() + 30);
+                } else {
+                    mc.player.setPitch(mc.player.getPitch() - 30);
+                }
+                critState = !critState;
+            }
+        }
+    }
+    public boolean isElytraTargetActive() {
+        return elytraTargetActive;
+    }
+
+    private float getRange() {
         return elytra.getValue() && mc.player.isFallFlying() ? elytraAttackRange.getValue() : attackRange.getValue();
     }
-    private float getWallRange(){
+
+    private float getWallRange() {
         return elytra.getValue() && mc.player != null && mc.player.isFallFlying() ? elytraWallRange.getValue() : wallRange.getValue();
     }
+
 
     public void auraLogic() {
         if (!haveWeapon()) {
@@ -242,7 +320,7 @@ public class Aura extends Module {
         swingHand();
         hitTicks = getHitTicks();
         if (prevSlot != -1)
-            InventoryUtility.switchTo(prevSlot);
+            InventoryUtility.switchTo(prevSlot, true);
     }
 
     private boolean @NotNull [] preAttack() {
@@ -318,19 +396,15 @@ public class Aura extends Module {
         return oldDelay.getValue().isEnabled() ? 1 + (int) (20f / random(minCPS.getValue(), maxCPS.getValue())) : (shouldRandomizeDelay() ? (int) MathUtility.random(11, 13) : attackTickLimit.getValue());
     }
 
+
     @EventHandler
     public void onUpdate(PlayerUpdateEvent e) {
-        if (!pauseTimer.passedMs(1000))
+        if (!pauseTimer.passedMs(500))
             return;
 
-        if (mc.player.isUsingItem() && pauseWhileEating.getValue()) {
-            ItemStack usingStack = mc.player.getActiveItem();
-            if (!usingStack.isOf(Items.SHIELD)) {
-                return;
-            }
-        }
-
-        if(pauseBaritone.getValue() && ThunderHack.baritone){
+        if (mc.player.isUsingItem() && pauseWhileEating.getValue())
+            return;
+        if (pauseBaritone.getValue() && ThunderHack.baritone) {
             boolean isTargeted = (target != null);
             if (isTargeted && !wasTargeted) {
                 BaritoneAPI.getProvider().getPrimaryBaritone().getCommandManager().execute("pause");
@@ -349,16 +423,23 @@ public class Aura extends Module {
 
     @EventHandler
     public void onSync(EventSync e) {
+
+        if (target != null && rotationMode.getValue() != Mode.None && rotationMode.getValue() != Mode.Grim) {
+            Vec3d targetPos = target.getPos().add(0, target.getEyeHeight(target.getPose()) / 2.0, 0);
+            float[] angles = Managers.PLAYER.calcAngle(targetPos);
+
+            mc.player.setYaw(angles[0]);
+            mc.player.setPitch(angles[1]);
+        } else {
+            rotationYaw = mc.player.getYaw();
+            rotationPitch = mc.player.getPitch();
+        }
+
         if (!pauseTimer.passedMs(1000))
             return;
 
-        if (mc.player.isUsingItem() && pauseWhileEating.getValue()) {
-            ItemStack usingStack = mc.player.getActiveItem();
-            if (!usingStack.isOf(Items.SHIELD)) {
-                return;
-            }
-        }
-
+        if (mc.player.isUsingItem() && pauseWhileEating.getValue())
+            return;
 
         if (!haveWeapon())
             return;
@@ -457,36 +538,31 @@ public class Aura extends Module {
         return true;
     }
 
-    private boolean shieldBreaker(boolean instant) {
+    private boolean shieldBreaker(boolean instant) { //todo - Actual value of parameter 'instant' is always 'false'
         int axeSlot = InventoryUtility.getAxe().slot();
         if (axeSlot == -1) return false;
         if (!shieldBreaker.getValue()) return false;
-        if (!(target instanceof PlayerEntity playerTarget)) return false;
-        if (!playerTarget.isBlocking() && !instant) return false;
-        boolean hasShield = playerTarget.getOffHandStack().getItem() == Items.SHIELD
-                || playerTarget.getMainHandStack().getItem() == Items.SHIELD;
-        if (!hasShield) return false;
-
-        int currentSlot = mc.player.getInventory().selectedSlot;
+        if (!(target instanceof PlayerEntity)) return false;
+        if (!((PlayerEntity) target).isUsingItem() && !instant) return false;
+        if (((PlayerEntity) target).getOffHandStack().getItem() != Items.SHIELD && ((PlayerEntity) target).getMainHandStack().getItem() != Items.SHIELD)
+            return false;
 
         if (axeSlot >= 9) {
-            int windowId = mc.player.currentScreenHandler.syncId;
-            mc.interactionManager.clickSlot(windowId, axeSlot, 0, SlotActionType.PICKUP, mc.player);
-            mc.interactionManager.clickSlot(windowId, currentSlot + 36, 0, SlotActionType.PICKUP, mc.player);
-            mc.interactionManager.clickSlot(windowId, axeSlot, 0, SlotActionType.PICKUP, mc.player);
-            axeSlot = currentSlot;
+            mc.interactionManager.clickSlot(mc.player.currentScreenHandler.syncId, axeSlot, mc.player.getInventory().selectedSlot, SlotActionType.SWAP, mc.player);
+            sendPacket(new CloseHandledScreenC2SPacket(mc.player.currentScreenHandler.syncId));
+            mc.interactionManager.attackEntity(mc.player, target);
+            swingHand();
+            mc.interactionManager.clickSlot(mc.player.currentScreenHandler.syncId, axeSlot, mc.player.getInventory().selectedSlot, SlotActionType.SWAP, mc.player);
+            sendPacket(new CloseHandledScreenC2SPacket(mc.player.currentScreenHandler.syncId));
+        } else {
+            sendPacket(new UpdateSelectedSlotC2SPacket(axeSlot));
+            mc.interactionManager.attackEntity(mc.player, target);
+            swingHand();
+            sendPacket(new UpdateSelectedSlotC2SPacket(mc.player.getInventory().selectedSlot));
         }
-
-        mc.player.getInventory().selectedSlot = axeSlot;
-        sendPacket(new UpdateSelectedSlotC2SPacket(axeSlot));
-        mc.interactionManager.attackEntity(mc.player, target);
-        mc.player.swingHand(Hand.MAIN_HAND);
-        mc.player.getInventory().selectedSlot = currentSlot;
-        sendPacket(new UpdateSelectedSlotC2SPacket(currentSlot));
         hitTicks = 10;
         return true;
     }
-
 
     private void swingHand() {
         switch (attackHand.getValue()) {
@@ -508,6 +584,8 @@ public class Aura extends Module {
     }
 
     private void updateTarget() {
+
+
         Entity candidat = findTarget();
 
         if (target == null) {
@@ -596,10 +674,7 @@ public class Aura extends Module {
             Render3DEngine.OUTLINE_QUEUE.add(new Render3DEngine.OutlineAction(resolvedBox, HudEditor.getColor(0), 1));
 
         switch (esp.getValue()) {
-            case CelkaPasta -> Render3DEngine.drawOldTargetEsp(stack, target);
-            case NurikZapen -> CaptureMark.render(target);
-            case ThunderHackV2 -> Render3DEngine.renderGhosts(espLength.getValue(), espFactor.getValue(), espShaking.getValue(), espAmplitude.getValue(), target);
-            case ThunderHack -> Render3DEngine.drawTargetEsp(stack, target);
+            case Default -> CaptureMark.render(target);
         }
 
         if (clientLook.getValue() && rotationMode.getValue() != Mode.None) {
@@ -611,6 +686,24 @@ public class Aura extends Module {
     @Override
     public void onDisable() {
         target = null;
+        if (elytraTargetActive) {
+            elytraTargetActive = false;
+
+            if (previousRotationMode != null) {
+                rotationMode.setValue(previousRotationMode);
+            }
+            if (previousResolverMode != null) {
+                resolver.setValue(previousResolverMode);
+            }
+
+            if (fireSpam.getValue()) {
+                ModuleManager.fireSpam.disable();
+            }
+
+            ModuleManager.rotations.setMoveFix(previousMoveFix);
+
+            Managers.NOTIFICATION.publicity("[Aura-ElytraTarget] ", "Wyłączony", 2, Notification.Type.ERROR);
+        }
     }
 
     public float getSquaredRotateDistance() {
@@ -687,13 +780,17 @@ public class Aura extends Module {
 
         float[] rotation;
 
+        // Если мы перестали смотреть на цель
         if (!Managers.PLAYER.checkRtx(rotationYaw, rotationPitch, getRange(), getWallRange(), rayTrace.getValue())) {
             float[] rotation1 = Managers.PLAYER.calcAngle(target.getPos().add(0, target.getEyeHeight(target.getPose()) / 2f, 0));
 
+            // Проверяем видимость центра игрока
             if (PlayerUtility.squaredDistanceFromEyes(target.getPos().add(0, target.getEyeHeight(target.getPose()) / 2f, 0)) <= attackRange.getPow2Value()
                     && Managers.PLAYER.checkRtx(rotation1[0], rotation1[1], getRange(), 0, rayTrace.getValue())) {
+                // наводим на центр
                 rotationPoint = new Vec3d(random(-0.1f, 0.1f), target.getEyeHeight(target.getPose()) / (random(1.8f, 2.5f)), random(-0.1f, 0.1f));
             } else {
+                // Сканим хитбокс на видимую точку
                 float halfBox = (float) (lenghtX / 2f);
 
                 for (float x1 = -halfBox; x1 <= halfBox; x1 += 0.05f) {
@@ -702,10 +799,12 @@ public class Aura extends Module {
 
                             Vec3d v1 = new Vec3d(target.getX() + x1, target.getY() + y1, target.getZ() + z1);
 
+                            // Скипаем, если вне досягаемости
                             if (PlayerUtility.squaredDistanceFromEyes(v1) > attackRange.getPow2Value()) continue;
 
                             rotation = Managers.PLAYER.calcAngle(v1);
                             if (Managers.PLAYER.checkRtx(rotation[0], rotation[1], getRange(), 0, rayTrace.getValue())) {
+                                // Наводимся, если видим эту точку
                                 rotationPoint = new Vec3d(x1, y1, z1);
                                 break;
                             }
@@ -726,6 +825,7 @@ public class Aura extends Module {
         float[] rotation;
         float halfBox = (float) (target.getBoundingBox().getLengthX() / 2f);
 
+        // уменьшил частоту выборки
         for (float x1 = -halfBox; x1 <= halfBox; x1 += 0.15f) {
             for (float z1 = -halfBox; z1 <= halfBox; z1 += 0.15f) {
                 for (float y1 = 0.05f; y1 <= target.getBoundingBox().getLengthY(); y1 += 0.25f) {
@@ -753,15 +853,18 @@ public class Aura extends Module {
             }
             if (skipEntity(ent)) continue;
             if (!(ent instanceof LivingEntity)) continue;
-            first_stage.add((LivingEntity) ent);
+
+            if (mc.player.squaredDistanceTo(ent.getPos()) <= targetDistance.getValue() * targetDistance.getValue()) {
+                first_stage.add((LivingEntity) ent);
+            }
         }
 
         return switch (sort.getValue()) {
             case LowestDistance ->
-                    first_stage.stream().min(Comparator.comparing(e -> (mc.player.squaredDistanceTo(e.getPos())))).orElse(null);
+                    first_stage.stream().min(Comparator.comparing(e -> mc.player.squaredDistanceTo(e.getPos()))).orElse(null);
 
             case HighestDistance ->
-                    first_stage.stream().max(Comparator.comparing(e -> (mc.player.squaredDistanceTo(e.getPos())))).orElse(null);
+                    first_stage.stream().max(Comparator.comparing(e -> mc.player.squaredDistanceTo(e.getPos()))).orElse(null);
 
             case FOV -> first_stage.stream().min(Comparator.comparing(this::getFOVAngle)).orElse(null);
 
@@ -772,26 +875,29 @@ public class Aura extends Module {
                     first_stage.stream().max(Comparator.comparing(e -> (e.getHealth() + e.getAbsorptionAmount()))).orElse(null);
 
             case LowestDurability -> first_stage.stream().min(Comparator.comparing(e -> {
-                        float v = 0;
-                        for (ItemStack armor : e.getArmorItems())
+                        float durability = 0;
+                        for (ItemStack armor : e.getArmorItems()) {
                             if (armor != null && !armor.getItem().equals(Items.AIR)) {
-                                v += ((armor.getMaxDamage() - armor.getDamage()) / (float) armor.getMaxDamage());
+                                durability += ((armor.getMaxDamage() - armor.getDamage()) / (float) armor.getMaxDamage());
                             }
-                        return v;
+                        }
+                        return durability;
                     }
             )).orElse(null);
 
             case HighestDurability -> first_stage.stream().max(Comparator.comparing(e -> {
-                        float v = 0;
-                        for (ItemStack armor : e.getArmorItems())
+                        float durability = 0;
+                        for (ItemStack armor : e.getArmorItems()) {
                             if (armor != null && !armor.getItem().equals(Items.AIR)) {
-                                v += ((armor.getMaxDamage() - armor.getDamage()) / (float) armor.getMaxDamage());
+                                durability += ((armor.getMaxDamage() - armor.getDamage()) / (float) armor.getMaxDamage());
                             }
-                        return v;
+                        }
+                        return durability;
                     }
             )).orElse(null);
         };
     }
+
 
     private boolean skipEntity(Entity entity) {
         if (isBullet(entity)) return false;
@@ -890,12 +996,13 @@ public class Aura extends Module {
         }
     }
 
-    private double yawOffset = 0;
-    private double pitchOffset = 0;
-    private double yawStep = 2.5;
-    private double pitchStep = 1.0;
-    private final double yawLimit = 15.0;
-    private final double pitchLimit = 10.0;
+    private Color interpolateColor(Color color1, Color color2, float progress) {
+        int red = (int) (color1.getRed() + (color2.getRed() - color1.getRed()) * progress);
+        int green = (int) (color1.getGreen() + (color2.getGreen() - color1.getGreen()) * progress);
+        int blue = (int) (color1.getBlue() + (color2.getBlue() - color1.getBlue()) * progress);
+        int alpha = (int) (color1.getAlpha() + (color2.getAlpha() - color1.getAlpha()) * progress);
+        return new Color(red, green, blue, alpha);
+    }
 
 
     public enum RayTrace {
@@ -911,11 +1018,11 @@ public class Aura extends Module {
     }
 
     public enum Resolver {
-        Off, Advantage, Predictive, BackTrack
+        Off, Advantage, Predictive, BackTrack, Mimimix
     }
 
     public enum Mode {
-        Interact, Smooth, Track, Grim, None
+        Interact, Track, Grim, None
     }
 
     public enum AttackHand {
@@ -923,7 +1030,7 @@ public class Aura extends Module {
     }
 
     public enum ESP {
-        Off, ThunderHack, NurikZapen, CelkaPasta, ThunderHackV2
+        Off, Default
     }
 
     public enum AccelerateOnHit {

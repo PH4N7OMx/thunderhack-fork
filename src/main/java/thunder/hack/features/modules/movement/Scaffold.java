@@ -71,6 +71,7 @@ public class Scaffold extends Module {
     @EventHandler
     public void onMove(EventMove event) {
         if (fullNullCheck()) return;
+
         if (safewalk.getValue() && !mode.is(Mode.Grim)) {
             double x = event.getX();
             double y = event.getY();
@@ -318,7 +319,7 @@ public class Scaffold extends Module {
                 mc.interactionManager.clickSlot(mc.player.currentScreenHandler.syncId, prevSlot, mc.player.getInventory().selectedSlot, SlotActionType.SWAP, mc.player);
                 sendPacket(new CloseHandledScreenC2SPacket(mc.player.currentScreenHandler.syncId));
             }
-            case Silent -> InventoryUtility.switchTo(prevSlot);
+            case Silent -> InventoryUtility.switchTo(prevSlot, true);
         }
     }
 

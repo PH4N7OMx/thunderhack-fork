@@ -82,12 +82,12 @@ public final class InteractionUtility {
 
     public static boolean placeBlock(BlockPos bp, Rotate rotate, Interact interact, PlaceMode mode, int slot, boolean returnSlot, boolean ignoreEntities) {
         int prevItem = mc.player.getInventory().selectedSlot;
-        if (slot != -1) InventoryUtility.switchTo(slot);
+        if (slot != -1) InventoryUtility.switchTo(slot, true);
         else return false;
 
         boolean result = placeBlock(bp, rotate, interact, mode, ignoreEntities);
 
-        if (returnSlot) InventoryUtility.switchTo(prevItem);
+        if (returnSlot) InventoryUtility.switchTo(prevItem, true);
         return result;
     }
 
@@ -95,7 +95,7 @@ public final class InteractionUtility {
         int prevItem = mc.player.getInventory().selectedSlot;
         invResult.switchTo();
         boolean result = placeBlock(bp, rotate, interact, mode, ignoreEntities);
-        if (returnSlot) InventoryUtility.switchTo(prevItem);
+        if (returnSlot) InventoryUtility.switchTo(prevItem, true);
 
         return result;
     }
@@ -468,6 +468,11 @@ public final class InteractionUtility {
         double deltaZ = pos.getZ() - mc.player.getZ();
         float yawDelta = MathHelper.wrapDegrees((float) MathHelper.wrapDegrees(Math.toDegrees(Math.atan2(deltaZ, deltaX)) - 90.0) - MathHelper.wrapDegrees(mc.player.getYaw()));
         return Math.abs(yawDelta) <= fov;
+    }
+
+    public static boolean isBlockAboveGround(BlockPos pos) {
+        BlockPos belowPos = pos.down();
+        return mc.world.getBlockState(belowPos).isAir();
     }
 
     public record BlockPosWithFacing(BlockPos position, Direction facing) {

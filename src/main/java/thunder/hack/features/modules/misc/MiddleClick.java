@@ -149,12 +149,12 @@ public class MiddleClick extends Module {
         @Override
         public void run() {
             if (!inv) {
-                InventoryUtility.switchTo(epSlot);
+                InventoryUtility.switchTo(epSlot, true);
                 AsyncManager.sleep(delay);
                 InteractionUtility.sendSequencedPacket(id -> new PlayerInteractItemC2SPacket(Hand.MAIN_HAND, id, mc.player.getYaw(), mc.player.getPitch()));
                 mc.player.networkHandler.sendPacket(new HandSwingC2SPacket(Hand.MAIN_HAND));
                 AsyncManager.sleep(delay);
-                InventoryUtility.switchTo(originalSlot);
+                InventoryUtility.switchTo(originalSlot, true);
             } else {
                 mc.interactionManager.clickSlot(mc.player.currentScreenHandler.syncId, epSlot, originalSlot, SlotActionType.SWAP, mc.player);
                 AsyncManager.sleep(delay);
@@ -176,9 +176,9 @@ public class MiddleClick extends Module {
                     int hpSlot = getHpSlot();
                     int originalSlot = mc.player.getInventory().selectedSlot;
                     if (hpSlot != -1) {
-                        InventoryUtility.switchTo(hpSlot);
+                        InventoryUtility.switchTo(hpSlot, true);
                         InteractionUtility.sendSequencedPacket(id -> new PlayerInteractItemC2SPacket(Hand.MAIN_HAND, id, mc.player.getYaw(), mc.player.getPitch()));
-                        InventoryUtility.switchTo(originalSlot);
+                        InventoryUtility.switchTo(originalSlot, true);
                     }
                 } else {
                     int hpSlot = findHpInInventory();
@@ -291,10 +291,10 @@ public class MiddleClick extends Module {
                     int slot = InventoryUtility.findItemInHotBar(Items.EXPERIENCE_BOTTLE).slot();
                     if (slot != -1) {
                         int lastSlot = mc.player.getInventory().selectedSlot;
-                        InventoryUtility.switchTo(slot);
+                        InventoryUtility.switchTo(slot, true);
                         InteractionUtility.sendSequencedPacket(id -> new PlayerInteractItemC2SPacket(Hand.MAIN_HAND, id, mc.player.getYaw(), mc.player.getPitch()));
                         if (ModuleManager.middleClick.silent.getValue())
-                            InventoryUtility.switchTo(lastSlot);
+                            InventoryUtility.switchTo(lastSlot, true);
                     }
                 }
             });

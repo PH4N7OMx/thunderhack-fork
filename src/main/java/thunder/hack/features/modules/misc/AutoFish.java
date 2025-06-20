@@ -62,7 +62,7 @@ public class AutoFish extends Module {
                     disable(isRu() ? "Удочка почти сломалась!" : "Saving the rod...");
                 } else if (changeRod.getValue() && getRodSlot() != -1) {
                     sendMessage(isRu() ? "Свапнулся на новую удочку" : "Swapped to a new rod");
-                    InventoryUtility.switchTo(getRodSlot());
+                    InventoryUtility.switchTo(getRodSlot(), true);
                     cooldown.reset();
                 } else disable(isRu() ? "Удочка почти сломалась!" : "Saving the rod...");
             }

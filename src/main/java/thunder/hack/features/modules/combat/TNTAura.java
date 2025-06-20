@@ -124,7 +124,7 @@ public class TNTAura extends Module {
             InventoryUtility.saveSlot();
             InteractionUtility.placeBlock(headBlock, rotate.getValue(), InteractionUtility.Interact.Vanilla, placeMode.getValue(), getTntSlot(), false, false);
             BlockHitResult igniteResult = getIgniteResult(headBlock);
-            InventoryUtility.switchTo(getFlintSlot());
+            InventoryUtility.switchTo(getFlintSlot(), true);
             if (mc.world.getBlockState(headBlock).getBlock() instanceof TntBlock && igniteResult != null) {
                 sendSequencedPacket(id -> new PlayerInteractBlockC2SPacket(Hand.MAIN_HAND, igniteResult, id));
                 mc.player.swingHand(Hand.MAIN_HAND);

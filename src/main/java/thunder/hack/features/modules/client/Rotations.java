@@ -14,13 +14,13 @@ import thunder.hack.setting.Setting;
 
 public class Rotations extends Module {
     public Rotations() {
-        super("MoveFix", Category.CLIENT);
+        super("Rotations", Category.CLIENT);
     }
 
     private final Setting<MoveFix> moveFix = new Setting<>("MoveFix", MoveFix.Off);
     public final Setting<Boolean> clientLook = new Setting<>("ClientLook", false);
 
-    private enum MoveFix {
+    public enum MoveFix {
         Off, Focused, Free
     }
 
@@ -45,23 +45,23 @@ public class Rotations extends Module {
         }
     }
 
-    private float previousAimRange;
-
     public void modifyVelocity(EventPlayerTravel e) {
-        if (ModuleManager.aura.isEnabled() && ModuleManager.aura.target != null && ModuleManager.aura.rotationMode.not(Aura.Mode.None)
+        if (ModuleManager.aura.isEnabled() && ModuleManager.aura.isElytraTargetActive()
                 && ModuleManager.aura.elytraTarget.getValue() && Managers.PLAYER.ticksElytraFlying > 5) {
-            if (previousAimRange == 0f) {
-                previousAimRange = ModuleManager.aura.aimRange.getValue();
-            }
-            ModuleManager.aura.aimRange.setValue(32f);
 
-            return;
-        } else {
-            if (previousAimRange != 0f) {
-                ModuleManager.aura.aimRange.setValue(previousAimRange);
-                previousAimRange = 0f;
+            if (e.isPre()) {
+                prevYaw = mc.player.getYaw();
+                prevPitch = mc.player.getPitch();
+
+                mc.player.setYaw(fixRotation);
+                mc.player.setPitch(ModuleManager.aura.rotationPitch);
+            } else {
+                mc.player.setYaw(prevYaw);
+                mc.player.setPitch(prevPitch);
             }
+            return;
         }
+
         if (moveFix.getValue() == MoveFix.Focused && !Float.isNaN(fixRotation) && !mc.player.isRiding()) {
             if (e.isPre()) {
                 prevYaw = mc.player.getYaw();
@@ -97,6 +97,15 @@ public class Rotations extends Module {
         float g = MathHelper.cos(yaw * MathHelper.RADIANS_PER_DEGREE);
         return new Vec3d(vec3d.x * (double) g - vec3d.z * (double) f, vec3d.y, vec3d.z * (double) g + vec3d.x * (double) f);
     }
+
+    public MoveFix getMoveFix() {
+        return moveFix.getValue();
+    }
+
+    public void setMoveFix(MoveFix value) {
+        moveFix.setValue(value);
+    }
+
 
     @Override
     public boolean isToggleable() {

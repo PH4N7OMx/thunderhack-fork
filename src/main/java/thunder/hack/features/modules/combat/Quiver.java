@@ -38,7 +38,7 @@ public final class Quiver extends Module {
     @Override
     public void onDisable() {
         if (preBowSlot != -1)
-            InventoryUtility.switchTo(preBowSlot);
+            InventoryUtility.switchTo(preBowSlot, true);
 
         mc.options.useKey.setPressed(false);
     }

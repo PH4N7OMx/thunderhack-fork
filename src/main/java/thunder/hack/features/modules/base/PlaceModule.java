@@ -51,6 +51,7 @@ public abstract class PlaceModule extends Module {
     protected final Setting<Boolean> cryingObsidian = new Setting<>("Crying Obsidian", true).addToGroup(blocks);
     protected final Setting<Boolean> dirt = new Setting<>("Dirt", false).addToGroup(blocks);
     protected final Setting<Boolean> oakPlanks = new Setting<>("OakPlanks", false).addToGroup(blocks);
+    protected final Setting<Boolean> cobblestone = new Setting<>("Cobblestone", false).addToGroup(blocks);
 
     protected final Setting<SettingGroup> pause = new Setting<>("Pause", new SettingGroup(false, 0));
     protected final Setting<Boolean> eatPause = new Setting<>("On Eat", false).addToGroup(pause);
@@ -160,7 +161,7 @@ public abstract class PlaceModule extends Module {
         }
 
         if (antiWeakness.getValue() && mc.player.hasStatusEffect(StatusEffects.WEAKNESS))
-            InventoryUtility.switchTo(preSlot);
+            InventoryUtility.switchTo(preSlot, true);
     }
 
     protected boolean canPlaceBlock(BlockPos pos, boolean ignoreEntities) {
@@ -189,6 +190,8 @@ public abstract class PlaceModule extends Module {
             canUseBlocks.addAll(List.of(Blocks.DIRT, Blocks.GRASS_BLOCK, Blocks.PODZOL));
         if (oakPlanks.getValue())
             canUseBlocks.addAll(List.of(Blocks.OAK_PLANKS, Blocks.BIRCH_PLANKS, Blocks.DARK_OAK_PLANKS));
+        if (cobblestone.getValue())
+            canUseBlocks.addAll(List.of(Blocks.COBBLESTONE));
         final ItemStack mainHandStack = mc.player.getMainHandStack();
         if (mainHandStack != ItemStack.EMPTY && mainHandStack.getItem() instanceof BlockItem) {
             final Block blockFromMainHandItem = ((BlockItem) mainHandStack.getItem()).getBlock();

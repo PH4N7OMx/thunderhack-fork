@@ -2,7 +2,6 @@ package thunder.hack.features.modules.misc;
 
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractItemC2SPacket;
-import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
 import net.minecraft.util.Hand;
 import thunder.hack.features.modules.Module;
 import thunder.hack.setting.Setting;
@@ -24,7 +23,7 @@ public class AutoSoup extends Module {
             if (result.found()) {
                 result.switchTo();
                 sendSequencedPacket(id -> new PlayerInteractItemC2SPacket(Hand.MAIN_HAND, id, mc.player.getYaw(), mc.player.getPitch()));
-                InventoryUtility.switchTo(prevSlot);
+                InventoryUtility.switchTo(prevSlot, true);
             }
         }
     }

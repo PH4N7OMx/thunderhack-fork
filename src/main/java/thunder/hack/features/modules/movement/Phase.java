@@ -61,7 +61,7 @@ public class Phase extends Module {
             float zDelta = Math.abs(playerPos.getZ() - e.getPos().getZ());
 
             if (xDelta != 0 && zDelta != 0 && strict.getValue())
-                  return;
+                return;
 
             if (!e.getPos().equals(playerPos.down()) || mc.options.sneakKey.isPressed())
                 e.setState(Blocks.AIR.getDefaultState());
@@ -142,11 +142,11 @@ public class Phase extends Module {
 
             int prevItem = mc.player.getInventory().selectedSlot;
 
-            InventoryUtility.switchTo(best_tool);
+            InventoryUtility.switchTo(best_tool, true);
             mc.interactionManager.updateBlockBreakingProgress(blockToBreak, mc.player.getHorizontalFacing());
             mc.player.swingHand(Hand.MAIN_HAND);
             if (silent.getValue())
-                InventoryUtility.switchTo(prevItem);
+                InventoryUtility.switchTo(prevItem, true);
         }
 
         if (mode.getValue() == Mode.ForceMine && (mc.player.horizontalCollision || playerInsideBlock()) && !mc.player.isSubmergedInWater() && !mc.player.isInLava())
@@ -195,10 +195,10 @@ public class Phase extends Module {
                 int prevItem = mc.player.getInventory().selectedSlot;
 
                 if (epSlot != -1) {
-                    InventoryUtility.switchTo(epSlot);
+                    InventoryUtility.switchTo(epSlot, true);
                     sendSequencedPacket(id -> new PlayerInteractItemC2SPacket(Hand.MAIN_HAND, id, mc.player.getYaw(), mc.player.getPitch()));
                     sendPacket(new HandSwingC2SPacket(Hand.MAIN_HAND));
-                    InventoryUtility.switchTo(prevItem);
+                    InventoryUtility.switchTo(prevItem, true);
                     if (autoDisable.getValue())
                         disable();
                 }

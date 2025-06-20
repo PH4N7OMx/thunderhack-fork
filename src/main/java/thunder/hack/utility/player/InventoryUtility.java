@@ -294,7 +294,7 @@ public final class InventoryUtility {
 
     public static void returnSlot() {
         if (cachedSlot != -1)
-            switchTo(cachedSlot);
+            switchTo(cachedSlot, true);
         cachedSlot = -1;
     }
 
@@ -307,7 +307,7 @@ public final class InventoryUtility {
         ((IInteractionManager) mc.interactionManager).syncSlot();
     }
 
-    public static void switchTo(int slot) {
+    public static void switchTo(int slot, boolean b) {
         if (mc.player == null || mc.getNetworkHandler() == null) return;
         if (mc.player.getInventory().selectedSlot == slot && Managers.PLAYER.serverSideSlot == slot)
             return;

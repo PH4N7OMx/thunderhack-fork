@@ -466,7 +466,7 @@ public final class SpeedMine extends Module {
                     clickSlot(from < 9 ? from + 36 : from, mc.player.getInventory().selectedSlot, SlotActionType.SWAP);
                 closeScreen();
             } else if (switchMode.is(SwitchMode.Silent)) InventoryUtility.switchToSilent(slot);
-            else InventoryUtility.switchTo(slot);
+            else InventoryUtility.switchTo(slot, true);
         }
 
         public void fixMovement() {
