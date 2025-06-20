@@ -14,16 +14,32 @@ public class AutoSprint extends Module {
     public static final Setting<Float> motion = new Setting<>("Motion", 1f, 0f, 1f, v -> sprint.getValue());
     private final Setting<Boolean> stopWhileUsing = new Setting<>("StopWhileUsing", false);
     private final Setting<Boolean> pauseWhileAura = new Setting<>("PauseWhileAura", false);
+    private final Setting<Boolean> allowSwimSprint = new Setting<>("SwimSprint", true);
 
     @Override
     public void onUpdate() {
-        mc.player.setSprinting(
-                mc.player.getHungerManager().getFoodLevel() > 6
-                        && !mc.player.horizontalCollision
-                        && mc.player.input.movementForward > 0
-                        && (!mc.player.isSneaking() || (ModuleManager.noSlow.isEnabled() && ModuleManager.noSlow.sneak.getValue()))
-                        && (!mc.player.isUsingItem() || !stopWhileUsing.getValue())
-                        && (!ModuleManager.aura.isEnabled() || Aura.target == null || !pauseWhileAura.getValue())
-        );
+        boolean canSprint = mc.player.getHungerManager().getFoodLevel() > 6
+                && !mc.player.horizontalCollision
+                && mc.player.input.movementForward > 0
+                && (!mc.player.isSneaking() || (ModuleManager.noSlow.isEnabled() && ModuleManager.noSlow.sneak.getValue()))
+                && (!mc.player.isUsingItem() || !stopWhileUsing.getValue())
+                && (!ModuleManager.aura.isEnabled() || Aura.target == null || !pauseWhileAura.getValue());
+
+        if (allowSwimSprint.getValue()) {
+            if (mc.player.isTouchingWater() || mc.player.isInLava()) {
+                if (algorytm()) {
+                    canSprint = true;
+                } else {
+                    canSprint = false;
+                }
+            }
+        }
+
+        mc.player.setSprinting(canSprint);
+    }
+
+    private boolean algorytm() {
+        return mc.player.input.movementForward != 0
+                || mc.player.input.movementSideways != 0;
     }
 }
