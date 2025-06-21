@@ -1,19 +1,9 @@
 package thunder.hack.features.modules.movement;
 
 import meteordevelopment.orbit.EventHandler;
-import java.util.concurrent.ThreadLocalRandom;
 import net.minecraft.block.Blocks;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.Hand;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
-import net.minecraft.network.packet.c2s.play.PlayerInteractBlockC2SPacket;
-import net.minecraft.network.packet.c2s.play.HandSwingC2SPacket;
-import net.minecraft.block.Blocks;
-import net.minecraft.util.math.Box;
+import net.minecraft.command.argument.EntityAnchorArgumentType;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.vehicle.BoatEntity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.decoration.ArmorStandEntity;
 import net.minecraft.entity.effect.StatusEffects;
@@ -26,13 +16,15 @@ import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
-import net.minecraft.entity.Entity;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.shape.VoxelShape;
 import net.minecraft.util.shape.VoxelShapes;
 import thunder.hack.ThunderHack;
 import thunder.hack.core.Managers;
 import thunder.hack.core.manager.client.ModuleManager;
+import thunder.hack.core.manager.client.NotificationManager;
 import thunder.hack.events.impl.*;
+import thunder.hack.gui.notification.Notification;
 import thunder.hack.injection.accesors.IInteractionManager;
 import thunder.hack.features.modules.Module;
 import thunder.hack.setting.Setting;
@@ -40,6 +32,9 @@ import thunder.hack.utility.interfaces.IEntity;
 import thunder.hack.utility.player.InventoryUtility;
 import thunder.hack.utility.player.MovementUtility;
 import thunder.hack.utility.player.SearchInvResult;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static thunder.hack.features.modules.client.ClientSettings.isRu;
 import static thunder.hack.utility.player.MovementUtility.isMoving;
@@ -50,11 +45,8 @@ public class Speed extends Module {
     }
 
     public final Setting<Mode> mode = new Setting<>("Mode", Mode.NCP);
-    public final Setting<Float> grimEntityDistance = new Setting<>("EntityDistance", 2.25f, 0.1f, 6f, v -> mode.is(Mode.GrimEntity));
-    public final Setting<Float> grimEntityBoost = new Setting<>("EntityBoost", 1.1f, 0.1f, 3f, v -> mode.is(Mode.GrimEntity));
-    public final Setting<Float> grimEntity2Distance = new Setting<>("GrimEntity2 Distance", 1.0f, 0.1f, 3.0f, v -> mode.is(Mode.GrimEntity2));
-    public final Setting<Float> grimEntity2Speed = new Setting<>("GrimEntity2 Speed", 0.08f, 0.01f, 0.3f, v -> mode.is(Mode.GrimEntity2));
-    public final Setting<Boolean> armorStands2 = new Setting<>("ArmorStands", false, v -> mode.is(Mode.GrimEntity2));
+    public final Setting<Float> grimDistance = new Setting<>("GrimDistance", 2.25f, 0.1f, 5f, v -> mode.is(Mode.GrimEntity));
+    public final Setting<Float> grimSpeed = new Setting<>("GrimSpeed", 0.08f, 0.01f, 1f, v -> mode.is(Mode.GrimEntity2) || mode.is(Mode.GrimCombo));
     public Setting<Boolean> useTimer = new Setting<>("Use Timer", false);
     public Setting<Boolean> pauseInLiquids = new Setting<>("PauseInLiquids", false);
     public Setting<Boolean> pauseWhileSneaking = new Setting<>("PauseWhileSneaking", false);
@@ -66,8 +58,10 @@ public class Speed extends Module {
     public final Setting<Integer> delay = new Setting<>("Delay", 8, 1, 20, v -> mode.getValue() == Mode.FireWork);
     public final Setting<Boolean> strict = new Setting<>("Strict", false, v -> mode.is(Mode.GrimIce));
     public final Setting<Float> matrixJBSpeed = new Setting<>("TimerSpeed", 1.088f, 1f, 2f, v -> mode.is(Mode.MatrixJB));
-    public final Setting<Boolean> armorStands = new Setting<>("ArmorStands", false, v -> mode.is(Mode.GrimCombo) || mode.is(Mode.GrimEntity));
-    public final Setting<Boolean> BoatOnly = new Setting<>("BoatOnly", false);
+    public final Setting<Boolean> armorStands = new Setting<>("ArmorStands", false, v -> mode.is(Mode.GrimCombo) || mode.is(Mode.GrimEntity2));
+    public Setting<Boolean> ignoreOther = new Setting<>("IgnoreOther", true);
+    private Map<PlayerEntity, Integer> playersBehind = new HashMap<>();
+    private boolean morewsNotified = false;
 
     public double baseSpeed;
     private int stage, ticks, prevSlot;
@@ -76,7 +70,7 @@ public class Speed extends Module {
     private thunder.hack.utility.Timer startDelay = new thunder.hack.utility.Timer();
 
     public enum Mode {
-        StrictStrafe, MatrixJB, NCP, ElytraLowHop, MatrixDamage, GrimEntity, FireWork, Vanilla, GrimIce, GrimCombo, Most, GrimEntity2
+        GrimEntity, GrimEntity2, NCP, ElytraLowHop, MatrixDamage, StrictStrafe, MatrixJB, FireWork, Vanilla, GrimIce, GrimCombo
     }
 
     @Override
@@ -95,7 +89,6 @@ public class Speed extends Module {
 
     @EventHandler
     public void onSync(EventSync e) {
-        if (BoatOnly.getValue() && !isBoatNear(1.0)) return;
         if (mc.player.isInFluid() && pauseInLiquids.getValue() || mc.player.isSneaking() && pauseWhileSneaking.getValue()) {
             return;
         }
@@ -124,11 +117,16 @@ public class Speed extends Module {
     public void modifyVelocity(EventPlayerTravel e) {
         if (mode.getValue() == Mode.GrimEntity && !e.isPre() && ThunderHack.core.getSetBackTime() > 1000) {
             for (PlayerEntity ent : Managers.ASYNC.getAsyncPlayers()) {
-                if (ent != mc.player && mc.player.squaredDistanceTo(ent) <= grimEntityDistance.getValue() * grimEntityDistance.getValue()) {
+                if (ent != mc.player && mc.player.squaredDistanceTo(ent) <= grimDistance.getValue() * grimDistance.getValue()) {
                     float p = mc.world.getBlockState(((IEntity) mc.player).thunderHack_Recode$getVelocityBP()).getBlock().getSlipperiness();
-                    float f = mc.player.isOnGround() ? p * grimEntityBoost.getValue() : grimEntityBoost.getValue();
+                    float f = mc.player.isOnGround() ? p * 0.91f : 0.91f;
                     float f2 = mc.player.isOnGround() ? p : 0.99f;
-                    mc.player.setVelocity(mc.player.getVelocity().getX() / f * f2, mc.player.getVelocity().getY(), mc.player.getVelocity().getZ() / f * f2);
+
+                    mc.player.setVelocity(
+                            mc.player.getVelocity().getX() / f * f2,
+                            mc.player.getVelocity().getY(),
+                            mc.player.getVelocity().getZ() / f * f2
+                    );
                     break;
                 }
             }
@@ -136,51 +134,26 @@ public class Speed extends Module {
 
         if ((mode.is(Mode.GrimEntity2) || mode.is(Mode.GrimCombo)) && !e.isPre() && ThunderHack.core.getSetBackTime() > 1000 && MovementUtility.isMoving()) {
             int collisions = 0;
-            for (Entity grimEnt : mc.world.getEntities()) {
-                if (grimEnt != mc.player
-                        && (!(grimEnt instanceof ArmorStandEntity) || armorStands2.getValue())
-                        && (grimEnt instanceof LivingEntity || grimEnt instanceof BoatEntity)
-                        && mc.player.getBoundingBox().expand(grimEntity2Distance.getValue()).intersects(grimEnt.getBoundingBox())) {
+            for (Entity ent : mc.world.getEntities()) {
+                if (ent != mc.player &&
+                        (!(ent instanceof ArmorStandEntity) || armorStands.getValue()) &&
+                        (ent instanceof LivingEntity || ent instanceof BoatEntity) &&
+                        mc.player.getBoundingBox().expand(1.0).intersects(ent.getBoundingBox())) {
                     collisions++;
                 }
             }
 
-            // Исправление: учитываем направление движения игрока
-            if (collisions > 0) {
-                // Получаем направление движения на основе ввода игрока
-                float yaw = mc.player.getYaw();
-                float forward = mc.player.input.movementForward;
-                float strafe = mc.player.input.movementSideways;
-
-                // Вычисляем направление движения с учетом поворота камеры
-                double motionX = 0;
-                double motionZ = 0;
-
-                if (forward != 0 || strafe != 0) {
-                    // Нормализуем направление
-                    double length = Math.sqrt(forward * forward + strafe * strafe);
-                    forward /= length;
-                    strafe /= length;
-
-                    // Применяем поворот
-                    double radians = Math.toRadians(yaw);
-                    motionX = (strafe * Math.cos(radians) - forward * Math.sin(radians)) * grimEntity2Speed.getValue() * collisions;
-                    motionZ = (forward * Math.cos(radians) + strafe * Math.sin(radians)) * grimEntity2Speed.getValue() * collisions;
-                }
-
-                mc.player.addVelocity(motionX, 0.0, motionZ);
-            }
+            double[] motion = MovementUtility.forward(grimSpeed.getValue() * collisions);
+            mc.player.addVelocity(motion[0], 0.0, motion[1]);
         }
     }
 
     @EventHandler
     public void onTick(EventTick e) {
-        //first author: Delyfss
         if ((mode.is(Mode.GrimIce) || mode.is(Mode.GrimCombo)) && mc.player.isOnGround()) {
             BlockPos pos = ((IEntity) mc.player).thunderHack_Recode$getVelocityBP();
             SearchInvResult result = InventoryUtility.findBlockInHotBar(Blocks.ICE, Blocks.PACKED_ICE, Blocks.BLUE_ICE);
-            if (mc.world.isAir(pos) || !result.found() || !mc.options.jumpKey.isPressed())
-                return;
+            if (mc.world.isAir(pos) || !result.found() || !mc.options.jumpKey.isPressed()) return;
 
             prevSlot = mc.player.getInventory().selectedSlot;
             result.switchTo();
@@ -195,78 +168,24 @@ public class Speed extends Module {
             sendSequencedPacket(id -> new PlayerInteractBlockC2SPacket(Hand.MAIN_HAND, new BlockHitResult(pos.down().toCenterPos().add(0, 0.5, 0), Direction.UP, pos.down(), false), id));
             mc.world.setBlockState(pos, Blocks.ICE.getDefaultState());
         }
-        if (mode.is(Mode.Most) && isMoving() && mc.player.isOnGround()) {
-            BlockPos blockPos = mc.player.getBlockPos().down();
-            SearchInvResult result = InventoryUtility.findBlockInHotBar(Blocks.SCAFFOLDING);
-
-            if (!result.found()) return;
-            if (mc.world.getBlockState(blockPos).isAir()) return; // Ставим только если под ногами есть блок
-
-            int slot = result.slot();
-            int prevSlot = mc.player.getInventory().selectedSlot;
-
-            mc.player.networkHandler.sendPacket(new UpdateSelectedSlotC2SPacket(slot));
-
-            sendSequencedPacket(i -> new PlayerInteractBlockC2SPacket(
-                    Hand.MAIN_HAND,
-                    new BlockHitResult(
-                            blockPos.toCenterPos().add(
-                                    ThreadLocalRandom.current().nextDouble(-0.25, 0.25),
-                                    0.5,
-                                    ThreadLocalRandom.current().nextDouble(-0.25, 0.25)
-                            ),
-                            Direction.UP,
-                            blockPos,
-                            false
-                    ),
-                    i
-            ));
-
-            mc.player.networkHandler.sendPacket(new HandSwingC2SPacket(Hand.MAIN_HAND));
-
-            mc.player.jump();
-            mc.player.setVelocity(mc.player.getVelocity().x, 0, mc.player.getVelocity().z);
-
-            if (mc.world.getRegistryKey().equals(net.minecraft.world.World.OVERWORLD)) {
-                mc.player.networkHandler.sendPacket(new PlayerActionC2SPacket(
-                        PlayerActionC2SPacket.Action.START_DESTROY_BLOCK,
-                        blockPos.up(),
-                        Direction.UP
-                ));
-                mc.player.networkHandler.sendPacket(new PlayerActionC2SPacket(
-                        PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK,
-                        blockPos.up(),
-                        Direction.UP
-                ));
-                mc.player.networkHandler.sendPacket(new PlayerActionC2SPacket(
-                        PlayerActionC2SPacket.Action.ABORT_DESTROY_BLOCK,
-                        blockPos.up(),
-                        Direction.UP
-                ));
-            }
-
-            mc.player.networkHandler.sendPacket(new UpdateSelectedSlotC2SPacket(prevSlot));
-        }
 
 
+        ticks++;
     }
+
+
+
     @EventHandler
     public void onPostTick(EventPostTick e) {
         if ((mode.is(Mode.GrimIce) || mode.is(Mode.GrimCombo)) && prevSlot != -1) {
             mc.player.getInventory().selectedSlot = prevSlot;
             ((IInteractionManager) mc.interactionManager).syncSlot();
             prevSlot = -1;
-            if (mode.is(Mode.Most) && prevSlot != -1) {
-                mc.player.getInventory().selectedSlot = prevSlot;
-                ((IInteractionManager) mc.interactionManager).syncSlot();
-                prevSlot = -1;
-            }
         }
     }
 
     @Override
     public void onUpdate() {
-        if (BoatOnly.getValue() && !isBoatNear(1.0)) return;
         if (mc.player.isInFluid() && pauseInLiquids.getValue() || mc.player.isSneaking() && pauseWhileSneaking.getValue()) {
             return;
         }
@@ -344,19 +263,8 @@ public class Speed extends Module {
         }
     }
 
-    private boolean isBoatNear(double range) {
-        if (mc.world == null || mc.player == null) return false;
-        for (Entity entity : mc.world.getEntities()) {
-            if (entity instanceof BoatEntity && entity.squaredDistanceTo(mc.player) < range * range) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     @EventHandler
     public void onMove(EventMove event) {
-        if (BoatOnly.getValue() && !isBoatNear(1.0)) return;
         if (mc.player.isInFluid() && pauseInLiquids.getValue() || mc.player.isSneaking() && pauseWhileSneaking.getValue()) {
             return;
         }

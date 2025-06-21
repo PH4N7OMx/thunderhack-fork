@@ -392,8 +392,12 @@ public class Aura extends Module {
         if (!pauseTimer.passedMs(500))
             return;
 
-        if (mc.player.isUsingItem() && pauseWhileEating.getValue())
-            return;
+        if (mc.player.isUsingItem() && pauseWhileEating.getValue()) {
+            ItemStack usingItem = mc.player.getActiveItem();
+            if (!(usingItem.getItem() instanceof ShieldItem)) {
+                return;
+            }
+        }
         if (pauseBaritone.getValue() && ThunderHack.baritone) {
             boolean isTargeted = (target != null);
             if (isTargeted && !wasTargeted) {
@@ -428,9 +432,12 @@ public class Aura extends Module {
         if (!pauseTimer.passedMs(1000))
             return;
 
-        if (mc.player.isUsingItem() && pauseWhileEating.getValue())
-            return;
-
+        if (mc.player.isUsingItem() && pauseWhileEating.getValue()) {
+            ItemStack usingItem = mc.player.getActiveItem();
+            if (!(usingItem.getItem() instanceof ShieldItem)) {
+                return;
+            }
+        }
         if (!haveWeapon())
             return;
 
