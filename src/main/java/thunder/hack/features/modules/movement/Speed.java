@@ -31,9 +31,6 @@ import thunder.hack.utility.player.InventoryUtility;
 import thunder.hack.utility.player.MovementUtility;
 import thunder.hack.utility.player.SearchInvResult;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import static thunder.hack.features.modules.client.ClientSettings.isRu;
 import static thunder.hack.utility.player.MovementUtility.isMoving;
 
@@ -45,7 +42,7 @@ public class Speed extends Module {
     public final Setting<Mode> mode = new Setting<>("Mode", Mode.NCP);
     public final Setting<Float> grimEntityDistance = new Setting<>("GrimEntityDist", 2.25f, 0.1f, 5f, v -> mode.is(Mode.GrimEntity));
     public final Setting<Float> grimEntitySpeed = new Setting<>("GrimEntitySpeed", 0.08f, 0.01f, 1f, v -> mode.is(Mode.GrimEntity));
-    public final Setting<Float> grimEntity2Distance = new Setting<>("GrimEntity2Dist", 2.25f, 0.1f, 5f, v -> mode.is(Mode.GrimEntity2));
+    public final Setting<Float> grimEntity2Distance = new Setting<>("GrimEntity2Dist", 1.0f, 0.1f, 5f, v -> mode.is(Mode.GrimEntity2));
     public final Setting<Float> grimEntity2Speed = new Setting<>("GrimEntity2Speed", 0.08f, 0.01f, 1f, v -> mode.is(Mode.GrimEntity2));
     public Setting<Boolean> useTimer = new Setting<>("Use Timer", false);
     public Setting<Boolean> pauseInLiquids = new Setting<>("PauseInLiquids", false);
@@ -88,7 +85,7 @@ public class Speed extends Module {
                 if (ent != mc.player &&
                         (!(ent instanceof ArmorStandEntity) || armorStands.getValue()) &&
                         (ent instanceof LivingEntity || ent instanceof BoatEntity) &&
-                        mc.player.getBoundingBox().expand(1.0).intersects(ent.getBoundingBox())) {
+                        mc.player.getBoundingBox().expand(grimEntity2Distance.getValue()).intersects(ent.getBoundingBox())) {
                     collisions++;
                 }
             }
