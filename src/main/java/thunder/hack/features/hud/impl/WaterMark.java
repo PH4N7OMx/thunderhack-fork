@@ -29,17 +29,15 @@ public class WaterMark extends HudElement {
         super.onRender2D(context);
 
         String time = (new SimpleDateFormat("HH:mm")).format(new Date());
-        String aText = "A";
-        String glitchText = "glitch";
+        String NameText = "Kometa";
         String separator = " | ";
-        String fullText = aText + glitchText + separator + time;
+        String fullText = NameText + separator + time;
 
-        float aWidth = FontRenderers.sf_bold.getStringWidth(aText);
-        float glitchWidth = FontRenderers.sf_bold.getStringWidth(glitchText);
+        float NameWidth = FontRenderers.sf_bold.getStringWidth(NameText);
         float separatorWidth = FontRenderers.sf_bold.getStringWidth(separator);
         float timeWidth = FontRenderers.sf_bold.getStringWidth(time);
 
-        float totalWidth = aWidth + glitchWidth + separatorWidth + timeWidth + 8;
+        float totalWidth = NameWidth + separatorWidth + timeWidth + 8;
         float totalHeight = FontRenderers.sf_bold.getFontHeight("A") + 3;
 
         float fixedX = 5;
@@ -50,11 +48,8 @@ public class WaterMark extends HudElement {
         float textY = fixedY + 3;
         float currentX = fixedX + 4;
 
-        FontRenderers.sf_bold.drawString(context.getMatrices(), aText, currentX, textY, Color.WHITE.getRGB());
-        currentX += aWidth;
-
-        FontRenderers.sf_bold.drawGradientString(context.getMatrices(), glitchText, currentX, textY, 10);
-        currentX += glitchWidth;
+        FontRenderers.sf_bold.drawGradientString(context.getMatrices(), NameText, currentX, textY, 10);
+        currentX += NameWidth;
 
         FontRenderers.sf_bold.drawString(context.getMatrices(), separator, currentX, textY, Color.GRAY.getRGB());
         currentX += separatorWidth;

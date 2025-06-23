@@ -90,10 +90,12 @@ public class PotionHud extends HudElement {
                     fixedX + 22, fixedY + yOffset + 4,
                     Color.WHITE.getRGB());
 
-            FontRenderers.sf_bold_mini.drawString(context.getMatrices(),
+            FontRenderers.sf_bold_mini.drawString(
+                    context.getMatrices(),
                     duration,
                     fixedX + 22, fixedY + yOffset + 13,
-                    Color.GRAY.getRGB());
+                    new Color(220, 220, 220).getRGB()
+            );
 
             yOffset += blockHeight + 2;
         }
