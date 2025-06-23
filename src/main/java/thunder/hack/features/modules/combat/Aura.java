@@ -26,6 +26,7 @@ import net.minecraft.network.packet.s2c.play.EntityStatusS2CPacket;
 import net.minecraft.network.packet.s2c.play.PlayerPositionLookS2CPacket;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.util.Hand;
+import net.minecraft.util.UseAction;
 import net.minecraft.util.math.*;
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.glfw.GLFW;
@@ -275,11 +276,19 @@ public class Aura extends Module {
                 return;
 
             boolean[] playerState = preAttack();
-            if (!(target instanceof PlayerEntity pl) || !(pl.isUsingItem() && pl.getOffHandStack().getItem() == Items.SHIELD) || ignoreShield.getValue())
+            if (!(target instanceof PlayerEntity) || !isPlayerBlockingWithShield(target) || ignoreShield.getValue())
                 attack();
 
             postAttack(playerState[0], playerState[1]);
         }
+    }
+
+    private boolean isPlayerBlockingWithShield(Entity entity) {
+        if (!(entity instanceof PlayerEntity player)) return false;
+
+        return player.isUsingItem()
+                && player.getActiveItem().getItem() == Items.SHIELD
+                && player.getActiveItem().getUseAction() == UseAction.BLOCK;
     }
 
     private boolean haveWeapon() {
@@ -532,14 +541,17 @@ public class Aura extends Module {
         return true;
     }
 
-    private boolean shieldBreaker(boolean instant) { //todo - Actual value of parameter 'instant' is always 'false'
+    private boolean shieldBreaker(boolean instant) {
         int axeSlot = InventoryUtility.getAxe().slot();
         if (axeSlot == -1) return false;
         if (!shieldBreaker.getValue()) return false;
-        if (!(target instanceof PlayerEntity)) return false;
-        if (!((PlayerEntity) target).isUsingItem() && !instant) return false;
-        if (((PlayerEntity) target).getOffHandStack().getItem() != Items.SHIELD && ((PlayerEntity) target).getMainHandStack().getItem() != Items.SHIELD)
-            return false;
+        if (!(target instanceof PlayerEntity pl)) return false;
+
+        boolean shieldBlocking = pl.isUsingItem()
+                && pl.getActiveItem().getItem() == Items.SHIELD
+                && pl.getActiveItem().getUseAction() == UseAction.BLOCK;
+
+        if (!shieldBlocking && !instant) return false;
 
         if (axeSlot >= 9) {
             mc.interactionManager.clickSlot(mc.player.currentScreenHandler.syncId, axeSlot, mc.player.getInventory().selectedSlot, SlotActionType.SWAP, mc.player);
