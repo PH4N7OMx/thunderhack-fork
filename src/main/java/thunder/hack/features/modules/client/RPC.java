@@ -21,18 +21,16 @@ import static thunder.hack.features.modules.client.ClientSettings.isRu;
 public final class RPC extends Module {
     private static final DiscordRPC rpc = DiscordRPC.INSTANCE;
     public static Setting<Mode> mode = new Setting<>("Picture", Mode.Recode);
-    public static Setting<Boolean> showIP = new Setting<>("ShowIP", false);
     public static Setting<sMode> smode = new Setting<>("StateMode", sMode.Stats);
-    public static Setting<String> state = new Setting<>("State", "Beta");
-    public static Setting<Boolean> nickname = new Setting<>("Nickname", true);
+    public static Setting<String> state = new Setting<>("State", "1.0");
     public static DiscordRichPresence presence = new DiscordRichPresence();
     public static boolean started;
     static String String1 = "none";
     private final Timer timer_delay = new Timer();
     private static Thread thread;
     String slov;
-    String[] rpc_perebor_en = {"Крякает нурлаптон", "Reading RuHack chat", "Touching grass", "chatgpt request"};
-    String[] rpc_perebor_ru = {"Крякает нурлаптон", "Читает RuHack чат", "Трогает траву", "Спрашивает нейросеть"};
+    String[] rpc_perebor_en = {"Крякает нурлаптон", "Touching grass", "chatgpt request"};
+    String[] rpc_perebor_ru = {"Крякает нурлаптон", "Трогает траву", "Спрашивает нейросеть"};
     int randomInt;
 
     public RPC() {
@@ -86,7 +84,7 @@ public final class RPC extends Module {
             DiscordEventHandlers handlers = new DiscordEventHandlers();
             rpc.Discord_Initialize("1264857690807468043", handlers, true, "");
             presence.startTimestamp = (System.currentTimeMillis() / 1000L);
-            presence.largeImageText = "Kometa Beta" ;
+            presence.largeImageText = "Kometa" ;
             rpc.Discord_UpdatePresence(presence);
 
             thread = new Thread(() -> {
@@ -100,15 +98,6 @@ public final class RPC extends Module {
                         case Custom -> presence.state = state.getValue();
                         case Version -> presence.state = "Test" ;
                     }
-
-
-                    if (mc.getCurrentServerEntry() != null) {
-                        ServerInfo serverInfo = mc.getCurrentServerEntry();
-                        presence.smallImageText = "Server IP: " + serverInfo.address;
-                        presence.smallImageKey = "https://i.imgur.com/LqkcdfT.png";
-                    }
-
-
 
                     presence.button_label_1 = "Download";
                     presence.button_url_1 = "https://discord.gg/VDaU6X3emN";

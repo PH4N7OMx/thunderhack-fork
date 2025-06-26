@@ -86,7 +86,7 @@ public class Aura extends Module {
     private Rotations.MoveFix previousMoveFix;
     private boolean critState = false;
     public final Setting<Mode> rotationMode = new Setting<>("RotationMode", Mode.Track);
-    public final Setting<Integer> interactTicks = new Setting<>("InteractTicks", 3, 1, 50, v -> rotationMode.getValue() == Mode.Interact);
+    public final Setting<Integer> interactTicks = new Setting<>("SnapTicks", 2, 1, 50, v -> rotationMode.getValue() == Mode.Snap);
     public final Setting<Switch> switchMode = new Setting<>("AutoWeapon", Switch.None);
     public final Setting<Boolean> onlyWeapon = new Setting<>("OnlyWeapon", false, v -> switchMode.getValue() != Switch.Silent);
     public final Setting<BooleanSettingGroup> smartCrit = new Setting<>("SmartCrit", new BooleanSettingGroup(true));
@@ -155,7 +155,7 @@ public class Aura extends Module {
     public final Setting<ESP> esp = new Setting<>("ESP", ESP.Default);
     public static Entity target;
 
-    private final Timer mimimixTimer = new Timer();
+    private final Timer targetTimer = new Timer();
     public float rotationYaw;
     public float rotationPitch;
     public float pitchAcceleration = 1f;
@@ -199,7 +199,7 @@ public class Aura extends Module {
                 previousResolverMode = resolver.getValue();
 
                 rotationMode.setValue(Mode.Track);
-                resolver.setValue(Resolver.Mimimix);
+                resolver.setValue(Resolver.Target);
 
 
                 ModuleManager.rotations.setMoveFix(Rotations.MoveFix.Focused);
@@ -306,7 +306,7 @@ public class Aura extends Module {
     private boolean skipRayTraceCheck() {
         return rotationMode.getValue() == Mode.None || rayTrace.getValue() == RayTrace.OFF
                 || rotationMode.is(Mode.Grim)
-                || (rotationMode.is(Mode.Interact) && (interactTicks.getValue() <= 1
+                || (rotationMode.is(Mode.Snap) && (interactTicks.getValue() <= 1
                 || mc.world.getBlockCollisions(mc.player, mc.player.getBoundingBox().expand(-0.25, 0.0, -0.25).offset(0.0, 1, 0.0)).iterator().hasNext()));
     }
 
@@ -619,11 +619,15 @@ public class Aura extends Module {
         if (target == null)
             return;
 
-
         Vec3d targetVec;
 
-        if (mc.player.isFallFlying() || ModuleManager.elytraPlus.isEnabled()) targetVec = target.getEyePos();
-        else targetVec = getLegitLook(target);
+        if (mc.player.isFallFlying() || ModuleManager.elytraPlus.isEnabled()) {
+            targetVec = target.getEyePos();
+        } else if (rotationMode.getValue() == Mode.Simple) {
+            targetVec = getSimpleLookPoint(target);
+        } else {
+            targetVec = getLegitLook(target);
+        }
 
         if (targetVec == null)
             return;
@@ -634,8 +638,8 @@ public class Aura extends Module {
         float delta_yaw = wrapDegrees((float) wrapDegrees(Math.toDegrees(Math.atan2(targetVec.z - mc.player.getZ(), (targetVec.x - mc.player.getX()))) - 90) - rotationYaw) + (wallsBypass.is(WallsBypass.V2) && !ready && !mc.player.canSee(target) ? 20 : 0);
         float delta_pitch = ((float) (-Math.toDegrees(Math.atan2(targetVec.y - (mc.player.getPos().y + mc.player.getEyeHeight(mc.player.getPose())), Math.sqrt(Math.pow((targetVec.x - mc.player.getX()), 2) + Math.pow(targetVec.z - mc.player.getZ(), 2))))) - rotationPitch);
 
-        float yawStep = rotationMode.getValue() != Mode.Track ? 360f : random(minYawStep.getValue(), maxYawStep.getValue());
-        float pitchStep = rotationMode.getValue() != Mode.Track ? 180f : Managers.PLAYER.ticksElytraFlying > 5 ? 180 : (pitchAcceleration + random(-1f, 1f));
+        float yawStep = (rotationMode.getValue() != Mode.Track && rotationMode.getValue() != Mode.Simple) ? 360f : random(minYawStep.getValue(), maxYawStep.getValue());
+        float pitchStep = (rotationMode.getValue() != Mode.Track && rotationMode.getValue() != Mode.Simple) ? 180f : Managers.PLAYER.ticksElytraFlying > 5 ? 180 : (pitchAcceleration + random(-1f, 1f));
 
         if (ready)
             switch (accelerateOnHit.getValue()) {
@@ -651,7 +655,6 @@ public class Aura extends Module {
             delta_yaw = delta_yaw - 180;
 
         float deltaYaw = MathHelper.clamp(MathHelper.abs(delta_yaw), -yawStep, yawStep);
-
         float deltaPitch = MathHelper.clamp(delta_pitch, -pitchStep, pitchStep);
 
         float newYaw = rotationYaw + (delta_yaw > 0 ? deltaYaw : -deltaYaw);
@@ -659,7 +662,7 @@ public class Aura extends Module {
 
         double gcdFix = (Math.pow(mc.options.getMouseSensitivity().getValue() * 0.6 + 0.2, 3.0)) * 1.2;
 
-        if (trackticks > 0 || rotationMode.getValue() == Mode.Track) {
+        if (trackticks > 0 || rotationMode.getValue() == Mode.Track || rotationMode.getValue() == Mode.Simple) {
             rotationYaw = (float) (newYaw - (newYaw - rotationYaw) % gcdFix);
             rotationPitch = (float) (newPitch - (newPitch - rotationPitch) % gcdFix);
         } else {
@@ -719,12 +722,58 @@ public class Aura extends Module {
         return dst * dst;
     }
 
+    public Vec3d getSimpleLookPoint(Entity target) {
+        double lenghtX = target.getBoundingBox().getLengthX();
+        double lenghtY = target.getBoundingBox().getLengthY();
+        double lenghtZ = target.getBoundingBox().getLengthZ();
+
+        if (!mc.player.canSee(target)) {
+            if (Objects.requireNonNull(wallsBypass.getValue()) == WallsBypass.V1) {
+                return target.getPos().add(0, lenghtY, 0);
+            }
+        }
+
+        Vec3d bestPoint = null;
+        double bestDistance = Double.MAX_VALUE;
+
+        float halfBoxX = (float) (lenghtX / 2f);
+        float halfBoxZ = (float) (lenghtZ / 2f);
+
+        float step = 0.05f;
+
+        for (float x1 = -halfBoxX; x1 <= halfBoxX; x1 += step) {
+            for (float z1 = -halfBoxZ; z1 <= halfBoxZ; z1 += step) {
+                for (float y1 = 0.05f; y1 <= lenghtY; y1 += step) {
+                    Vec3d testPoint = new Vec3d(target.getX() + x1, target.getY() + y1, target.getZ() + z1);
+
+                    double distanceToPoint = PlayerUtility.squaredDistanceFromEyes(testPoint);
+
+                    if (distanceToPoint > getSquaredRotateDistance()) continue;
+
+                    float[] rotation = Managers.PLAYER.calcAngle(testPoint);
+
+                    if (Managers.PLAYER.checkRtx(rotation[0], rotation[1], getRange(), getWallRange(), rayTrace.getValue())) {
+                        if (distanceToPoint < bestDistance) {
+                            bestDistance = distanceToPoint;
+                            bestPoint = testPoint;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (bestPoint != null) {
+            return bestPoint;
+        }
+
+        Vec3d centerPos = target.getPos().add(0, target.getEyeHeight(target.getPose()) / 2f, 0);
+        return centerPos;
+    }
     /*
      * Эта хуеверть основанна на приципе "DVD Logo"
      * У нас есть точка и "коробка" (хитбокс цели)
      * Точка летает внутри коробки и отталкивается от стенок с рандомной скоростью и легким джиттером
      * Также выбирает лучшую дистанцию для удара, то есть считает не от центра до центра, а от наших глаз до достигаемых точек хитбокса цели
-     * Со стороны не сильно заметно что ты играешь с киллкой, в отличие от аур семейства Wexside
      */
 
     public Vec3d getLegitLook(Entity target) {
@@ -1020,11 +1069,11 @@ public class Aura extends Module {
     }
 
     public enum Resolver {
-        Off, Advantage, Predictive, BackTrack, Mimimix
+        Off, Advantage, Predictive, BackTrack, Target
     }
 
     public enum Mode {
-        Interact, Track, Grim, None
+        Snap, Simple, Track, Grim, None
     }
 
     public enum AttackHand {

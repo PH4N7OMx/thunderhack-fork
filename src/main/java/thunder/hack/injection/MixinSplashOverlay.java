@@ -59,17 +59,17 @@ public abstract class MixinSplashOverlay {
                 mc.currentScreen.render(context, 0, 0, delta);
 
             k = MathHelper.ceil((1.0F - MathHelper.clamp(f - 1.0F, 0.0F, 1.0F)) * 255.0F);
-            context.fill(0, 0, i, j, withAlpha(new Color(0x070015).getRGB(), k));
+            context.fill(0, 0, i, j, withAlpha(new Color(0x0A0F33).getRGB(), k));
             h = 1.0F - MathHelper.clamp(f - 1.0F, 0.0F, 1.0F);
         } else if (reloading) {
             if (mc.currentScreen != null && g < 1.0F)
                 mc.currentScreen.render(context, mouseX, mouseY, delta);
 
             k = MathHelper.ceil(MathHelper.clamp((double) g, 0.15, 1.0) * 255.0);
-            context.fill(0, 0, i, j, withAlpha(new Color(0x070015).getRGB(), k));
+            context.fill(0, 0, i, j, withAlpha(new Color(0x0A0F33).getRGB(), k));
             h = MathHelper.clamp(g, 0.0F, 1.0F);
         } else {
-            k = new Color(0x070015).getRGB();
+            k = new Color(0x0A0F33).getRGB();
             float m = (float) (k >> 16 & 255) / 255.0F;
             float n = (float) (k >> 8 & 255) / 255.0F;
             float o = (float) (k & 255) / 255.0F;
@@ -85,10 +85,10 @@ public abstract class MixinSplashOverlay {
         RenderSystem.blendFunc(770, 1);
 
         RenderSystem.setShaderColor(0.1F, 0.1F, 0.1F, h);
-        context.drawTexture(TextureStorage.kmLogo, k - 50, p - 50, 0, 0, 100, 100, 100, 100);
+        context.drawTexture(TextureStorage.kmLogo, k - 150, p - 100, 0, 0, 300, 200, 300, 200);
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, h);
-        Render2DEngine.addWindow(context.getMatrices(),k - 50, p - 50, k - 50 + (300 * progress), p + 50, 1f);
-        context.drawTexture(TextureStorage.kmLogo, k - 50, p - 50, 0, 0, 100, 100, 100, 100);
+        Render2DEngine.addWindow(context.getMatrices(),k - 150, p - 100, k - 150 + (300 * progress), p + 100, 1f);
+        context.drawTexture(TextureStorage.kmLogo, k - 150, p - 100, 0, 0, 300, 200, 300, 200);
         Render2DEngine.popWindow();
 
         float t = this.reload.getProgress();

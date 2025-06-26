@@ -43,7 +43,6 @@ public class CommandManager implements IManager {
         add(new PrefixCommand());
         add(new TrackerCommand());
         add(new GamemodeCommand());
-        add(new DropAllCommand());
         add(new TreasureCommand());
         add(new WayPointCommand());
         add(new TabParseCommand());

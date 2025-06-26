@@ -2,6 +2,9 @@ package thunder.hack.injection;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.block.ShulkerBoxBlock;
+import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.screen.ingame.InventoryScreen;
+import net.minecraft.network.packet.c2s.play.CloseHandledScreenC2SPacket;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -284,6 +287,98 @@ public abstract class MixinHandledScreen<T extends ScreenHandler> extends Screen
                 } else {
                     mc.interactionManager.clickSlot(mc.player.currentScreenHandler.syncId, clickableRects.get(rect), 0, SlotActionType.PICKUP, mc.player);
                 }
+            }
+        }
+    }
+
+    @Inject(method = "init", at = @At("TAIL"))
+    private void addButtons(CallbackInfo ci) {
+        HandledScreen<?> screen = (HandledScreen<?>) (Object) this;
+
+        if (mc.player.isCreative()) return;
+
+        if (screen.getClass().getSimpleName().equals("InventoryScreen")) {
+            ButtonWidget dropAllButton = ButtonWidget.builder(
+                            Text.literal("Выбросить все"),
+                            button -> this.dropAllItems()
+                    )
+                    .dimensions(
+                            this.x + 88 - 75,
+                            this.y + 166 + 4,
+                            150,
+                            20
+                    )
+                    .build();
+
+            this.addDrawableChild(dropAllButton);
+        } else {
+            ButtonWidget takeAllButton = ButtonWidget.builder(
+                            Text.literal("Взять все"),
+                            button -> this.takeAllItems()
+                    )
+                    .dimensions(
+                            this.x,
+                            this.y - 24,
+                            75,
+                            20
+                    )
+                    .build();
+
+            ButtonWidget storeAllButton = ButtonWidget.builder(
+                            Text.literal("Сложить все"),
+                            button -> this.storeAllItems()
+                    )
+                    .dimensions(
+                            this.x + 100,
+                            this.y - 24,
+                            75,
+                            20
+                    )
+                    .build();
+
+            this.addDrawableChild(takeAllButton);
+            this.addDrawableChild(storeAllButton);
+        }
+    }
+
+    private void dropAllItems() {
+        int syncId = mc.player.currentScreenHandler.syncId;
+        int slotCount = mc.player.currentScreenHandler.slots.size();
+
+        for (int i = 9; i <= 44 && i < slotCount; i++) {
+            mc.interactionManager.clickSlot(syncId, i, 1, SlotActionType.THROW, mc.player);
+        }
+        for (int i = 45; i < slotCount; i++) {
+            mc.interactionManager.clickSlot(syncId, i, 1, SlotActionType.THROW, mc.player);
+        }
+        for (int i = 0; i < 9 && i < slotCount; i++) {
+            mc.interactionManager.clickSlot(syncId, i, 1, SlotActionType.THROW, mc.player);
+        }
+        mc.player.networkHandler.sendPacket(new CloseHandledScreenC2SPacket(syncId));
+    }
+
+    private void takeAllItems() {
+        ScreenHandler handler = mc.player.currentScreenHandler;
+        int containerSlots = handler.slots.size() - 36;
+        for (int i = 0; i < containerSlots; i++) {
+            mc.interactionManager.clickSlot(
+                    handler.syncId,
+                    i,
+                    0,
+                    SlotActionType.QUICK_MOVE,
+                    mc.player
+            );
+        }
+    }
+
+    private void storeAllItems() {
+        ScreenHandler handler = mc.player.currentScreenHandler;
+        int totalSlots = handler.slots.size();
+        int firstPlayerSlot = totalSlots - 36;
+
+        for (int i = firstPlayerSlot; i < totalSlots; i++) {
+            if (!handler.getSlot(i).getStack().isEmpty()) {
+                mc.interactionManager.clickSlot(handler.syncId, i, 0, SlotActionType.QUICK_MOVE, mc.player);
             }
         }
     }

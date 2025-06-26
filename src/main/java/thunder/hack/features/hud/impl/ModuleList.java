@@ -20,6 +20,10 @@ import java.util.stream.Collectors;
 
 public class ModuleList extends HudElement {
     private final Setting<Boolean> showBinds = new Setting<>("ShowBinds", true);
+    private final Setting<Boolean> hideCombat = new Setting<>("HideCombat", false);
+    private final Setting<Boolean> hideMovement = new Setting<>("HideMovement", false);
+    private final Setting<Boolean> hidePlayer = new Setting<>("HidePlayer", false);
+    private final Setting<Boolean> hideMisc = new Setting<>("HideMisc", false);
     private final Setting<Boolean> hideRender = new Setting<>("HideRender", true);
     private final Setting<Boolean> hideHud = new Setting<>("HideHud", true);
 
@@ -147,8 +151,12 @@ public class ModuleList extends HudElement {
     private List<Module> getFilteredModules() {
         return Managers.MODULE.modules.stream()
                 .filter(m -> m.isOn())
-                .filter(m -> !hideRender.getValue() || m.getCategory() != Module.Category.RENDER)
+                .filter(m -> !hideCombat.getValue() || m.getCategory() != Category.COMBAT)
+                .filter(m -> !hideMovement.getValue() || m.getCategory() != Category.MOVEMENT)
                 .filter(m -> !hideHud.getValue() || m.getCategory() != Module.Category.HUD)
+                .filter(m -> !hideRender.getValue() || m.getCategory() != Module.Category.RENDER)
+                .filter(m -> !hidePlayer.getValue() || m.getCategory() != Category.PLAYER)
+                .filter(m -> !hideMisc.getValue() || m.getCategory() != Category.MISC)
                 .filter(m -> m != ModuleManager.clickGui && m != ModuleManager.thunderHackGui)
                 .filter(m -> m.isDrawn())
                 .sorted(Comparator.comparing(module -> {
