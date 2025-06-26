@@ -44,7 +44,7 @@ public class InfoHud extends HudElement {
         float startX = 5;
         int screenHeight = mc.getWindow().getScaledHeight();
 
-        int bottomMargin = 0;
+        int bottomMargin = 1;
 
         float startY = screenHeight - (lines.size() * lineHeight) - bottomMargin;
 
