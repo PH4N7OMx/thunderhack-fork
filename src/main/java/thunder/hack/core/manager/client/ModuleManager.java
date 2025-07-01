@@ -40,6 +40,7 @@ public class ModuleManager implements IManager {
     public static TotemPopCounter totemPopCounter = new TotemPopCounter();
     public static HotbarReplenish hotbarReplenish = new HotbarReplenish();
     public static DurabilityAlert durabilityAlert = new DurabilityAlert();
+    public static ChestplateFly chestplateFly = new ChestplateFly();
     public static AutoCrystalBase autoCrystalBase = new AutoCrystalBase();
     public static PearlBlockThrow pearlBlockThrow = new PearlBlockThrow();
     public static AutoCrystalInfo autoCrystalInfo = new AutoCrystalInfo();

@@ -1,214 +1,230 @@
 package thunder.hack.features.modules.movement;
 
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.client.network.OtherClientPlayerEntity;
 import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.network.packet.Packet;
-import net.minecraft.network.packet.c2s.common.CommonPongC2SPacket;
-import net.minecraft.network.packet.c2s.common.KeepAliveC2SPacket;
-import net.minecraft.network.packet.c2s.play.*;
-import net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket;
-import net.minecraft.util.math.Vec3d;
-import org.lwjgl.glfw.GLFW;
+import net.minecraft.entity.Entity;
+import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import thunder.hack.events.impl.EventTick;
 import thunder.hack.events.impl.PacketEvent;
 import thunder.hack.features.modules.Module;
 import thunder.hack.setting.Setting;
-import thunder.hack.setting.impl.Bind;
 import thunder.hack.setting.impl.ColorSetting;
-import thunder.hack.utility.player.PlayerEntityCopy;
-import thunder.hack.utility.render.Render3DEngine;
+import thunder.hack.utility.client.PacketQueueManager;
 
 import java.awt.*;
 import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.Queue;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import static thunder.hack.features.modules.client.ClientSettings.isRu;
+import java.util.UUID;
+import net.minecraft.util.math.Vec3d;
 
 public class Blink extends Module {
     public Blink() {
         super("Blink", Category.MOVEMENT);
     }
 
-    private final Setting<Boolean> pulse = new Setting<>("Pulse", false);
-    private final Setting<Boolean> autoDisable = new Setting<>("AutoDisable", false);
-    private final Setting<Boolean> disableOnVelocity = new Setting<>("DisableOnVelocity", false);
-    private final Setting<Integer> disablePackets = new Setting<>("DisablePackets", 17, 1, 1000, v -> autoDisable.getValue());
-    private final Setting<Integer> pulsePackets = new Setting<>("PulsePackets", 20, 1, 1000, v -> pulse.getValue());
+    private final Setting<Boolean> dummy = new Setting<>("Dummy", true);
+    private final Setting<Boolean> ambush = new Setting<>("Ambush", false);
+    private final Setting<Boolean> autoDisable = new Setting<>("AutoDisable", true);
+    private final Setting<Boolean> autoReset = new Setting<>("AutoReset", false);
+    private final Setting<Integer> resetAfter = new Setting<>("ResetAfter", 100, 1, 1000, v -> autoReset.getValue());
+    private final Setting<ResetAction> resetAction = new Setting<>("ResetAction", ResetAction.RESET, v -> autoReset.getValue());
     private final Setting<Boolean> render = new Setting<>("Render", true);
-    private final Setting<RenderMode> renderMode = new Setting<>("Render Mode", RenderMode.Circle, value -> render.getValue());
-    private final Setting<ColorSetting> circleColor = new Setting<>("Color", new ColorSetting(0xFFda6464), value -> render.getValue() && renderMode.getValue() == RenderMode.Circle || renderMode.getValue() == RenderMode.Both);
-    private final Setting<Bind> cancel = new Setting<>("Cancel", new Bind(GLFW.GLFW_KEY_LEFT_SHIFT, false, false));
+    private final Setting<ColorSetting> circleColor = new Setting<>("Color", new ColorSetting(0xFF0080FF), v -> render.getValue());
 
-    private enum RenderMode {
-        Circle,
-        Model,
-        Both
+    private enum ResetAction {
+        RESET,
+        BLINK
     }
 
-    private PlayerEntityCopy blinkPlayer;
-    public static Vec3d lastPos = Vec3d.ZERO;
-    private Vec3d prevVelocity = Vec3d.ZERO;
-    private float prevYaw = 0;
-    private boolean prevSprinting = false;
-    private final Queue<Packet<?>> storedPackets = new LinkedList<>();
-    private final Queue<Packet<?>> storedTransactions = new LinkedList<>();
-    private final AtomicBoolean sending = new AtomicBoolean(false);
+    private OtherClientPlayerEntity dummyPlayer;
+    private Vec3d originalPosition;
+    private boolean isResetting = false;
 
     @Override
     public void onEnable() {
-        if (mc.player == null
-                || mc.world == null
-                || mc.isIntegratedServerRunning()
-                || mc.getNetworkHandler() == null) {
+        if (mc.player == null || mc.world == null || mc.isIntegratedServerRunning() || mc.getNetworkHandler() == null) {
             disable();
             return;
         }
 
-        storedTransactions.clear();
-        lastPos = mc.player.getPos();
-        prevVelocity = mc.player.getVelocity();
-        prevYaw = mc.player.getYaw();
-        prevSprinting = mc.player.isSprinting();
-        mc.world.spawnEntity(new ClientPlayerEntity(mc, mc.world, mc.getNetworkHandler(), mc.player.getStatHandler(), mc.player.getRecipeBook(), mc.player.lastSprinting, mc.player.isSneaking()));
-        sending.set(false);
-        storedPackets.clear();
+        isResetting = false;
+        originalPosition = mc.player.getPos();
+
+        if (dummy.getValue()) {
+            createDummyPlayer();
+        }
+
+        PacketQueueManager.startQueueing();
     }
 
     @Override
     public void onDisable() {
         if (mc.world == null || mc.player == null) return;
 
-        while (!storedPackets.isEmpty())
-            sendPacket(storedPackets.poll());
-
-        if (blinkPlayer != null) blinkPlayer.deSpawn();
-        blinkPlayer = null;
+        try {
+            if (!isResetting) {
+                PacketQueueManager.flushOutgoing();
+            }
+            removeDummyPlayer();
+        } catch (Exception e) {
+            PacketQueueManager.clear();
+        } finally {
+            isResetting = false;
+        }
     }
 
     @Override
     public String getDisplayInfo() {
-        return Integer.toString(storedPackets.size());
+        return String.valueOf(PacketQueueManager.getQueueSize());
     }
 
-    @EventHandler
-    public void onPacketReceive(PacketEvent.Receive event) {
-        if (event.getPacket() instanceof EntityVelocityUpdateS2CPacket vel && vel.getEntityId() == mc.player.getId() && disableOnVelocity.getValue())
-            disable(isRu() ? "Выключенно из-за велосити!" : "Disabled due to velocity!");
+    private void createDummyPlayer() {
+        if (mc.player == null || mc.world == null) return;
+
+        try {
+            OtherClientPlayerEntity clone = new OtherClientPlayerEntity(mc.world, mc.player.getGameProfile());
+            clone.headYaw = mc.player.getHeadYaw();
+            clone.copyPositionAndRotation(mc.player);
+            clone.setUuid(UUID.randomUUID());
+
+            mc.world.addEntity(clone);
+            dummyPlayer = clone;
+        } catch (Exception e) {
+        }
+    }
+
+    private void removeDummyPlayer() {
+        if (dummyPlayer != null && mc.world != null) {
+            try {
+                mc.world.removeEntity(dummyPlayer.getId(), Entity.RemovalReason.DISCARDED);
+            } catch (Exception e) {
+            } finally {
+                dummyPlayer = null;
+            }
+        }
     }
 
     @EventHandler
     public void onPacketSend(PacketEvent.Send event) {
-        if (fullNullCheck()) return;
+        if (fullNullCheck() || isResetting) return;
 
-        Packet<?> packet = event.getPacket();
-
-        if (sending.get()) {
+        if (ambush.getValue() && event.getPacket() instanceof PlayerInteractEntityC2SPacket) {
+            disable();
             return;
         }
 
-        if (packet instanceof CommonPongC2SPacket) {
-            storedTransactions.add(packet);
-        }
-
-        if (pulse.getValue()) {
-            if (packet instanceof PlayerMoveC2SPacket) {
-                event.cancel();
-                storedPackets.add(packet);
-            }
-        } else if (!(packet instanceof ChatMessageC2SPacket || packet instanceof TeleportConfirmC2SPacket || packet instanceof KeepAliveC2SPacket || packet instanceof AdvancementTabC2SPacket || packet instanceof ClientStatusC2SPacket)) {
+        if (PacketQueueManager.isQueueing()) {
+            PacketQueueManager.queuePacket(event.getPacket());
             event.cancel();
-            storedPackets.add(packet);
         }
     }
 
     @EventHandler
     public void onUpdate(EventTick event) {
-        if (fullNullCheck()) return;
+        if (fullNullCheck() || isResetting) return;
 
-        if (isKeyPressed(cancel)) {
-            storedPackets.clear();
-            mc.player.setPos(lastPos.getX(), lastPos.getY(), lastPos.getZ());
-            mc.player.setVelocity(prevVelocity);
-            mc.player.setYaw(prevYaw);
-            mc.player.setSprinting(prevSprinting);
-            mc.player.setSneaking(false);
-            mc.options.sneakKey.setPressed(false);
-            sending.set(true);
-            while (!storedTransactions.isEmpty())
-                sendPacket(storedTransactions.poll());
-            sending.set(false);
-            disable(isRu() ? "Отменяю.." : "Canceling..");
+        if (PacketQueueManager.getQueueSize() > 1000) {
+            safeDisable();
             return;
         }
 
-        if (pulse.getValue()) {
-            if (storedPackets.size() >= pulsePackets.getValue()) {
-                sendPackets();
-            }
+        if (autoReset.getValue() && PacketQueueManager.getPositionCount() > resetAfter.getValue()) {
+            handleAutoReset();
         }
 
-        if (autoDisable.getValue()) {
-            if (storedPackets.size() >= disablePackets.getValue()) {
-                disable();
-            }
+        if (autoDisable.getValue() && PacketQueueManager.getQueueSize() >= 50) {
+            safeDisable();
         }
     }
 
-    private void sendPackets() {
-        if (mc.player == null) return;
-        sending.set(true);
+    private void handleAutoReset() {
+        if (isResetting || fullNullCheck()) return;
 
-        while (!storedPackets.isEmpty()) {
-            Packet<?> packet = storedPackets.poll();
-            sendPacket(packet);
-            if (packet instanceof PlayerMoveC2SPacket && !(packet instanceof PlayerMoveC2SPacket.LookAndOnGround)) {
-                lastPos = new Vec3d(((PlayerMoveC2SPacket) packet).getX(mc.player.getX()), ((PlayerMoveC2SPacket) packet).getY(mc.player.getY()), ((PlayerMoveC2SPacket) packet).getZ(mc.player.getZ()));
+        isResetting = true;
 
-                if (renderMode.getValue() == RenderMode.Model || renderMode.getValue() == RenderMode.Both) {
-                    blinkPlayer.deSpawn();
-                    blinkPlayer = new PlayerEntityCopy();
-                    blinkPlayer.spawn();
-                }
+        try {
+            switch (resetAction.getValue()) {
+                case RESET:
+                    PacketQueueManager.cancel();
+
+                    if (originalPosition != null && mc.player != null) {
+                        mc.player.updatePosition(originalPosition.getX(), originalPosition.getY(), originalPosition.getZ());
+                        mc.player.setVelocity(0, 0, 0);
+                    }
+
+                    if (dummyPlayer != null && originalPosition != null) {
+                        dummyPlayer.setPos(originalPosition.getX(), originalPosition.getY(), originalPosition.getZ());
+                    }
+                    break;
+
+                case BLINK:
+                    PacketQueueManager.flushOutgoing();
+                    if (dummyPlayer != null && mc.player != null) {
+                        dummyPlayer.copyPositionAndRotation(mc.player);
+                    }
+                    if (mc.player != null) {
+                        originalPosition = mc.player.getPos();
+                    }
+                    PacketQueueManager.startQueueing();
+                    break;
             }
-        }
 
-        sending.set(false);
-        storedPackets.clear();
+            if (autoDisable.getValue()) {
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(50);
+                        if (this.isEnabled()) {
+                            this.disable();
+                        }
+                    } catch (InterruptedException ignored) {}
+                }).start();
+            }
+
+        } catch (Exception e) {
+            safeDisable();
+        } finally {
+            isResetting = false;
+        }
+    }
+
+    private void safeDisable() {
+        try {
+            PacketQueueManager.clear();
+            disable();
+        } catch (Exception e) {
+            this.setEnabled(false);
+        }
     }
 
     public void onRender3D(MatrixStack stack) {
-        if (mc.player == null || mc.world == null) return;
-        if (render.getValue() && lastPos != null) {
-            if (renderMode.getValue() == RenderMode.Circle || renderMode.getValue() == RenderMode.Both) {
-                float[] hsb = Color.RGBtoHSB(circleColor.getValue().getRed(), circleColor.getValue().getGreen(), circleColor.getValue().getBlue(), null);
-                float hue = (float) (System.currentTimeMillis() % 7200L) / 7200F;
-                int rgb = Color.getHSBColor(hue, hsb[1], hsb[2]).getRGB();
-                ArrayList<Vec3d> vecs = new ArrayList<>();
-                double x = lastPos.x;
-                double y = lastPos.y;
-                double z = lastPos.z;
+        if (mc.player == null || mc.world == null || !render.getValue() || originalPosition == null || isResetting) return;
 
-                for (int i = 0; i <= 360; ++i) {
-                    Vec3d vec = new Vec3d(x + Math.sin((double) i * Math.PI / 180.0) * 0.5D, y + 0.01, z + Math.cos((double) i * Math.PI / 180.0) * 0.5D);
-                    vecs.add(vec);
-                }
+        renderCircle(originalPosition);
+    }
 
-                for (int j = 0; j < vecs.size() - 1; ++j) {
-                    Render3DEngine.drawLine(vecs.get(j), vecs.get(j + 1), new Color(rgb));
-                    hue += (1F / 360F);
-                    rgb = Color.getHSBColor(hue, hsb[1], hsb[2]).getRGB();
-                }
-            }
-            if (renderMode.getValue() == RenderMode.Model || renderMode.getValue() == RenderMode.Both) {
-                if (blinkPlayer == null) {
-                    blinkPlayer = new PlayerEntityCopy();
-                    blinkPlayer.spawn();
-                }
-            }
+    private void renderCircle(Vec3d centerPos) {
+        if (centerPos == null) return;
+
+        ArrayList<Vec3d> vecs = new ArrayList<>();
+        double x = centerPos.x;
+        double y = centerPos.y;
+        double z = centerPos.z;
+
+        for (int i = 0; i <= 360; ++i) {
+            Vec3d vec = new Vec3d(
+                    x + Math.sin(i * Math.PI / 180.0) * 0.5D,
+                    y + 0.01,
+                    z + Math.cos(i * Math.PI / 180.0) * 0.5D
+            );
+            vecs.add(vec);
+        }
+
+        Color color = new Color(circleColor.getValue().getRed(),
+                circleColor.getValue().getGreen(),
+                circleColor.getValue().getBlue(),
+                circleColor.getValue().getAlpha());
+
+        for (int j = 0; j < vecs.size() - 1; ++j) {
         }
     }
 }
-

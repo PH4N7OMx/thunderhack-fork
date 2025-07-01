@@ -1,21 +1,15 @@
 {
   "schemaVersion": 1,
-  "id": "thunderhack",
-  "version": "1.7",
+  "id": "kometa",
+  "version": "1.0",
   "icon": "icon.png",
-  "name": "ThunderHack",
+  "name": "Kometa",
   "description": "Player Assistance Mod",
   "authors": [
     {
-      "name": "pan4ur",
+      "name": "PH4N7OM",
       "contact": {
-        "discord": "pan4ur"
-      }
-    },
-    {
-      "name": "06ED",
-      "contact": {
-        "discord": "dinner_enjoyer"
+        "discord": "ph4n7omx"
       }
     }
   ],
@@ -28,16 +22,15 @@
     ]
   },
   "contact": {
-    "sources": "https://github.com/Pan4ur/ThunderHack-Recode",
-    "homepage": "https://thunderhack-site.vercel.app",
-    "issues": "https://github.com/Pan4ur/ThunderHack-Recode/issues"
+    "discord": "https://discord.gg/E37gGHRaha",
+    "telegram": "https://t.me/KometaClientt"
   },
   "mixins": [
     "thunderhack.mixins.json"
   ],
   "depends": {
-    "fabricloader": ">=0.16.10",
-    "minecraft": "~1.21",
+    "fabricloader": ">=0.16.14",
+    "minecraft": "~1.21.1",
     "java": ">=21"
   },
   "suggests": {
