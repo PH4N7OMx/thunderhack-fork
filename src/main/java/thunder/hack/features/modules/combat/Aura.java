@@ -76,15 +76,10 @@ public class Aura extends Module {
     public final Setting<Float> elytraWallRange = new Setting<>("ElytraThroughWallsRange", 3.1f, 0f, 6.0f, v -> elytra.getValue());
     public final Setting<WallsBypass> wallsBypass = new Setting<>("WallsBypass", WallsBypass.Off, v -> getWallRange() > 0);
     public final Setting<Integer> fov = new Setting<>("FOV", 180, 1, 360);
-    public final Setting<Boolean> elytraTargetcustom = new Setting<>("ElytraTarget", false);
-    public final Setting<Bind> cancel = new Setting<>("Bind", new Bind(GLFW.GLFW_KEY_LEFT_SHIFT, false, false), v -> elytraTargetcustom.getValue());
-    public final Setting<Boolean> fireSpam = new Setting<>("FireSpam", false, v -> elytraTargetcustom.getValue());
-    public final Setting<Boolean> nursulantCrit = new Setting<>("NursulantCrit", false, v -> elytraTargetcustom.getValue());
-    private boolean keyHeld = false;
     private boolean elytraTargetActive = false;
     private Mode previousRotationMode;
     private Rotations.MoveFix previousMoveFix;
-    private boolean critState = false;
+    private float previousAimRange;
     public final Setting<Mode> rotationMode = new Setting<>("RotationMode", Mode.Track);
     public final Setting<Integer> interactTicks = new Setting<>("SnapTicks", 2, 1, 50, v -> rotationMode.getValue() == Mode.Snap);
     public final Setting<Switch> switchMode = new Setting<>("AutoWeapon", Switch.None);
@@ -111,7 +106,7 @@ public class Aura extends Module {
     public final Setting<SettingGroup> advanced = new Setting<>("Advanced", new SettingGroup(false, 0));
     public final Setting<Float> aimRange = new Setting<>("AimRange", 3.1f, 0f, 20.0f).addToGroup(advanced);
     public final Setting<Boolean> randomHitDelay = new Setting<>("RandomHitDelay", false).addToGroup(advanced);
-    public final Setting<Boolean> pauseInInventory = new Setting<>("PauseInInventory", true).addToGroup(advanced);
+    public final Setting<Boolean> pauseInInventory = new Setting<>("PauseInInventory", false).addToGroup(advanced);
     public final Setting<Boolean> dropSprint = new Setting<>("DropSprint", true).addToGroup(advanced);
     public final Setting<Boolean> returnSprint = new Setting<>("ReturnSprint", true, v -> dropSprint.getValue()).addToGroup(advanced);
     public final Setting<RayTrace> rayTrace = new Setting<>("RayTrace", RayTrace.OnlyTarget).addToGroup(advanced);
@@ -160,10 +155,6 @@ public class Aura extends Module {
     public float rotationPitch;
     public float pitchAcceleration = 1f;
 
-    private Color currentColor;
-    private float transitionProgress = 0.0f;
-    private boolean transitioningToHit = false;
-
     private Vec3d rotationPoint = Vec3d.ZERO;
     private Vec3d rotationMotion = Vec3d.ZERO;
 
@@ -184,57 +175,47 @@ public class Aura extends Module {
 
     @EventHandler
     public void onTick(EventTick e) {
-        if (!elytraTargetcustom.getValue()) {
+        if (!elytraTarget.getValue()) {
+            if (elytraTargetActive) {
+                rotationMode.setValue(previousRotationMode);
+                resolver.setValue(previousResolverMode);
+                ModuleManager.rotations.setMoveFix(previousMoveFix);
+                aimRange.setValue(previousAimRange);
+                elytraTargetActive = false;
+            }
             return;
         }
 
-        boolean isKeyPressed = cancel.getValue().getKey() != -1 && GLFW.glfwGetKey(mc.getWindow().getHandle(), cancel.getValue().getKey()) == GLFW.GLFW_PRESS;
-
-        if (isKeyPressed && !keyHeld) {
-            keyHeld = true;
-
+        if (mc.player.isFallFlying()) {
             if (!elytraTargetActive) {
                 previousRotationMode = rotationMode.getValue();
                 previousMoveFix = ModuleManager.rotations.getMoveFix();
                 previousResolverMode = resolver.getValue();
+                previousAimRange = aimRange.getValue();
 
                 rotationMode.setValue(Mode.Track);
-                resolver.setValue(Resolver.Target);
-
-
+                resolver.setValue(Resolver.Elytra);
                 ModuleManager.rotations.setMoveFix(Rotations.MoveFix.Focused);
-                elytraTargetActive = true;
+                aimRange.setValue(50.0f);
 
-                Managers.NOTIFICATION.publicity("[Aura-ElytraTarget] ", "Włączony", 2, Notification.Type.SUCCESS);
-            } else {
+                elytraTargetActive = true;
+            }
+        } else {
+            if (elytraTargetActive) {
                 rotationMode.setValue(previousRotationMode);
                 resolver.setValue(previousResolverMode);
-
                 ModuleManager.rotations.setMoveFix(previousMoveFix);
+                aimRange.setValue(previousAimRange);
+
                 elytraTargetActive = false;
-
-                Managers.NOTIFICATION.publicity("[Aura-ElytraTarget] ", "Wyłączony", 2, Notification.Type.ERROR);
-            }
-        }
-
-        if (!isKeyPressed) {
-            keyHeld = false;
-        }
-
-        if (elytraTargetActive && nursulantCrit.getValue()) {
-            if (mc.options.attackKey.isPressed()) {
-                if (!critState) {
-                    mc.player.setPitch(mc.player.getPitch() + 30);
-                } else {
-                    mc.player.setPitch(mc.player.getPitch() - 30);
-                }
-                critState = !critState;
             }
         }
     }
+
     public boolean isElytraTargetActive() {
         return elytraTargetActive;
     }
+
 
     private float getRange() {
         return elytra.getValue() && mc.player.isFallFlying() ? elytraAttackRange.getValue() : attackRange.getValue();
@@ -311,6 +292,10 @@ public class Aura extends Module {
     }
 
     public void attack() {
+        if (ModuleManager.blink != null && ModuleManager.blink.isEnabled()) {
+            ModuleManager.blink.resetQueueFromAura();
+        }
+
         Criticals.cancelCrit = true;
         ModuleManager.criticals.doCrit();
         int prevSlot = switchMethod();
@@ -320,6 +305,10 @@ public class Aura extends Module {
         hitTicks = getHitTicks();
         if (prevSlot != -1)
             InventoryUtility.switchTo(prevSlot, true);
+
+        if (ModuleManager.blink != null && ModuleManager.blink.isEnabled()) {
+            ModuleManager.blink.startQueueFromAura();
+        }
     }
 
     private boolean @NotNull [] preAttack() {
@@ -1047,15 +1036,6 @@ public class Aura extends Module {
         }
     }
 
-    private Color interpolateColor(Color color1, Color color2, float progress) {
-        int red = (int) (color1.getRed() + (color2.getRed() - color1.getRed()) * progress);
-        int green = (int) (color1.getGreen() + (color2.getGreen() - color1.getGreen()) * progress);
-        int blue = (int) (color1.getBlue() + (color2.getBlue() - color1.getBlue()) * progress);
-        int alpha = (int) (color1.getAlpha() + (color2.getAlpha() - color1.getAlpha()) * progress);
-        return new Color(red, green, blue, alpha);
-    }
-
-
     public enum RayTrace {
         OFF, OnlyTarget, AllEntities
     }
@@ -1069,7 +1049,7 @@ public class Aura extends Module {
     }
 
     public enum Resolver {
-        Off, Advantage, Predictive, BackTrack, Target
+        Off, Advantage, Predictive, BackTrack, Elytra
     }
 
     public enum Mode {

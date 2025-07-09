@@ -8,6 +8,9 @@ import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import thunder.hack.events.impl.EventTick;
 import thunder.hack.events.impl.PacketEvent;
 import thunder.hack.features.modules.Module;
+import thunder.hack.utility.client.PacketQueueManager;
+import net.minecraft.client.network.OtherClientPlayerEntity;
+import net.minecraft.util.math.Vec3d;
 import thunder.hack.setting.Setting;
 import thunder.hack.setting.impl.ColorSetting;
 import thunder.hack.utility.client.PacketQueueManager;
@@ -226,5 +229,27 @@ public class Blink extends Module {
 
         for (int j = 0; j < vecs.size() - 1; ++j) {
         }
+    }
+    public void resetQueueFromAura() {
+        if (isResetting || fullNullCheck()) return;
+        isResetting = true;
+        try {
+            PacketQueueManager.flushOutgoing();
+            if (dummyPlayer != null && mc.player != null) {
+                dummyPlayer.copyPositionAndRotation(mc.player);
+            }
+            if (mc.player != null) {
+                originalPosition = mc.player.getPos();
+            }
+        } catch (Exception e) {
+            safeDisable();
+        } finally {
+            isResetting = false;
+        }
+    }
+
+    public void startQueueFromAura() {
+        if (fullNullCheck()) return;
+        PacketQueueManager.startQueueing();
     }
 }

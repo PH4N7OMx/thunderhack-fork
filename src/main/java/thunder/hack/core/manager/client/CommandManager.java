@@ -78,7 +78,7 @@ public class CommandManager implements IManager {
     }
 
     public static @NotNull String getClientMessage() {
-        return Formatting.WHITE + "⌊" + Formatting.GOLD + "⚡" + Formatting.WHITE + "⌉" + Formatting.RESET;
+        return Formatting.WHITE + "⌊" + Formatting.GOLD + "☄" + Formatting.WHITE + "⌉" + Formatting.RESET;
     }
 
     public List<Command> getCommands() {
